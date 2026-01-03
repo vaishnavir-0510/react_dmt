@@ -20,9 +20,12 @@ import {
   TextField,
   Snackbar,
 } from '@mui/material';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../../store';
+import { mappingApi } from '../../../services/mappingApi';
 import { useGetMappingDataQuery } from '../../../services/mappingApi';
+import { ToggleButton } from '../ToggleButton';
+import { useActivity } from '../ActivityProvider';
 import { useGetMappedTargetObjectQuery, useGetObjectMetadataQuery } from '../../../services/metadataApi';
 import { useGetObjectsBySystemQuery } from '../../../services/objectsApi';
 import { useGetSystemsByProjectQuery } from '../../../services/systemsApi';
@@ -31,11 +34,9 @@ import {
   AutoFixHigh as AutoFixIcon,
   Refresh as RefreshIcon,
   SwapHoriz as SwapIcon,
-  Link as LinkIcon,
   Edit as EditIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
-  List as PicklistIcon,
   Key as KeyIcon,
   Star as RequiredIcon,
   TextFields as TextIcon,
@@ -44,8 +45,6 @@ import {
   DragIndicator as DragIcon,
   TableChart as TableIcon,
   CalendarToday as CalendarIcon,
-  CheckCircle as SuccessIcon,
-  Error as ErrorIcon,
 } from '@mui/icons-material';
 
 interface MappingPair {
@@ -112,9 +111,21 @@ interface TargetColumn {
   datatype: string;
 }
 
+interface MappingUpdatePayload {
+  source_column: string;
+  target_column: string;
+  source_object_id: string;
+  target_object_id: string;
+  project: string;
+  environment: string;
+}
+
 export const MappingTab: React.FC = () => {
+  const dispatch = useDispatch();
   const { selectedObject } = useSelector((state: RootState) => state.migration);
   const { selectedProject, selectedEnvironment } = useSelector((state: RootState) => state.app);
+  const { getReadOnlyFlag, getCompletionStatus, getActivityStatus, updateStatusToggleButton } = useActivity();
+  const isReadOnly = getReadOnlyFlag('Mapping') || getCompletionStatus('Mapping');
   const [targetSystemId, setTargetSystemId] = useState<string>('');
   const [selectedTargetObjectId, setSelectedTargetObjectId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -153,6 +164,20 @@ export const MappingTab: React.FC = () => {
     { skip: !selectedObject?.object_id }
   );
 
+  // Refetch data when object changes
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      refetch();
+    }
+  }, [selectedObject?.object_id, refetch]);
+
+  // Refresh activity status when tab is accessed
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      getActivityStatus(selectedObject.object_id);
+    }
+  }, [selectedObject?.object_id, getActivityStatus]);
+
   // Get mapped target object for the source object from entity mapping API
   const {
     data: mappedTargetObject,
@@ -185,7 +210,6 @@ export const MappingTab: React.FC = () => {
     if (mappedTargetObject?.system) {
       setTargetSystemId(mappedTargetObject.system);
     } else if (targetSystems.length > 0) {
-      // If no mapped target object, use the first target system
       setTargetSystemId(targetSystems[0].id);
     }
   }, [mappedTargetObject, targetSystems]);
@@ -193,10 +217,8 @@ export const MappingTab: React.FC = () => {
   // Set selected target object when mapped target object or target objects are loaded
   React.useEffect(() => {
     if (mappedTargetObject?.id) {
-      // If entity mapping exists, set the mapped target object as selected
       setSelectedTargetObjectId(mappedTargetObject.id);
     } else if (targetObjects.length > 0 && !selectedTargetObjectId) {
-      // If no entity mapping but target objects exist, don't auto-select anything
       setSelectedTargetObjectId('');
     }
   }, [mappedTargetObject, targetObjects, selectedTargetObjectId]);
@@ -254,18 +276,7 @@ export const MappingTab: React.FC = () => {
 
   // Fetch target columns for edit mode
   const fetchTargetColumns = async (sourceObjectId: string, targetObjectId: string, sourceColumnId: string) => {
-    console.log('Fetching target columns with:', {
-      sourceObjectId,
-      targetObjectId,
-      sourceColumnId
-    });
-
     if (!sourceObjectId || !targetObjectId || !sourceColumnId) {
-      console.error('Missing required parameters:', {
-        sourceObjectId,
-        targetObjectId,
-        sourceColumnId
-      });
       setSnackbar({
         open: true,
         message: 'Missing required IDs for fetching target columns',
@@ -277,8 +288,6 @@ export const MappingTab: React.FC = () => {
     setIsLoadingTargetColumns(true);
     try {
       const url = `https://api-dev.datamatter.tech/migration/v1/target/field/list/?source_object_id=${sourceObjectId}&target_object_id=${targetObjectId}&source_column=${sourceColumnId}`;
-      
-      console.log('Making GET request to:', url);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -288,26 +297,16 @@ export const MappingTab: React.FC = () => {
         },
       });
 
-      console.log('Response status:', response.status);
-
       if (response.ok) {
         const data: TargetColumn[] = await response.json();
-        console.log('Received target columns:', data);
-        
-        // Remove duplicates and null/empty values
         const uniqueColumns = data.filter((column, index, self) => 
           column.name && 
           column.name.trim() !== '' && 
           self.findIndex(c => c.name === column.name) === index
         );
-        
-        console.log('Filtered unique columns:', uniqueColumns);
-        setTargetColumns(uniqueColumns);
         return uniqueColumns;
       } else {
-        const errorText = await response.text();
-        console.error('Failed to fetch target columns:', response.status, errorText);
-        throw new Error(`Failed to fetch target columns: ${response.status} ${errorText}`);
+        throw new Error('Failed to fetch target columns');
       }
     } catch (error) {
       console.error('Error fetching target columns:', error);
@@ -327,7 +326,6 @@ export const MappingTab: React.FC = () => {
     let intervalId: number;
 
     const checkJobStatus = async () => {
-      // Check if polling has been running for more than 1 minute (60000 ms)
       const currentTime = Date.now();
       if (currentTime - pollingStartTime > 60000) {
         setIsMappingInProgress(false);
@@ -363,8 +361,11 @@ export const MappingTab: React.FC = () => {
               message: 'AI mapping completed successfully!',
               severity: 'success'
             });
-            // Refresh mapping data
             refetch();
+            // Refresh activity status to update completion states
+            if (selectedObject?.object_id) {
+              getActivityStatus(selectedObject.object_id);
+            }
           } else if (job.status === 'FAILED' || job.status === 'ERROR') {
             setIsMappingInProgress(false);
             setCurrentTaskId('');
@@ -374,7 +375,6 @@ export const MappingTab: React.FC = () => {
               severity: 'error'
             });
           }
-          // Continue polling for QUEUED, PENDING, IN_PROGRESS statuses
         } else {
           throw new Error('Failed to fetch job status');
         }
@@ -391,7 +391,7 @@ export const MappingTab: React.FC = () => {
     };
 
     if (isMappingInProgress && currentTaskId) {
-      intervalId = window.setInterval(checkJobStatus, 2000); // Poll every 2 seconds
+      intervalId = window.setInterval(checkJobStatus, 2000);
     }
 
     return () => {
@@ -412,7 +412,7 @@ export const MappingTab: React.FC = () => {
     }
 
     setIsMappingInProgress(true);
-    setPollingStartTime(Date.now()); // Set the start time for timeout tracking
+    setPollingStartTime(Date.now());
     
     try {
       const payload = {
@@ -437,6 +437,11 @@ export const MappingTab: React.FC = () => {
           message: 'AI mapping started successfully!',
           severity: 'info'
         });
+
+        // Automatically mark Mapping activity as in progress when mapping starts
+        if (selectedObject?.object_id) {
+          updateStatusToggleButton('Mapping', selectedObject.object_id, true);
+        }
       } else {
         throw new Error('Failed to start AI mapping');
       }
@@ -475,15 +480,11 @@ export const MappingTab: React.FC = () => {
       );
 
       if (response.ok) {
-        // Get the blob from response
         const blob = await response.blob();
-        
-        // Create download link
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         
-        // Get filename from content-disposition header or use default
         const contentDisposition = response.headers.get('content-disposition');
         let filename = 'field_mapping.csv';
         
@@ -537,26 +538,8 @@ export const MappingTab: React.FC = () => {
     });
   };
 
-  const handleToggleMapping = (id: string) => {
-    setMappings(prev => prev.map(mapping => 
-      mapping.id === id 
-        ? { ...mapping, isMapped: !mapping.isMapped }
-        : mapping
-    ));
-  };
-
   const handleEdit = async (mapping: MappingPair) => {
-    console.log('Edit clicked for mapping:', mapping);
-    console.log('Selected Object:', selectedObject);
-    console.log('Selected Target Object ID:', selectedTargetObjectId);
-    console.log('Mapping source_column:', mapping.source_column);
-
     if (!selectedObject?.object_id || !selectedTargetObjectId || !mapping.source_column) {
-      console.error('Missing required information:', {
-        sourceObjectId: selectedObject?.object_id,
-        targetObjectId: selectedTargetObjectId,
-        sourceColumnId: mapping.source_column
-      });
       setSnackbar({
         open: true,
         message: 'Missing required information for editing mapping',
@@ -565,7 +548,6 @@ export const MappingTab: React.FC = () => {
       return;
     }
 
-    // Fetch target columns for this specific mapping
     const columns = await fetchTargetColumns(
       selectedObject.object_id,
       selectedTargetObjectId,
@@ -573,6 +555,7 @@ export const MappingTab: React.FC = () => {
     );
 
     if (columns.length > 0) {
+      // Keep all columns including picklist ones
       setEditState({
         id: mapping.id,
         targetField: mapping.targetField,
@@ -580,6 +563,9 @@ export const MappingTab: React.FC = () => {
         sourceColumnId: mapping.source_column,
         targetColumnId: mapping.target_column || ''
       });
+      
+      // Set all available columns (including picklist)
+      setTargetColumns(columns);
     } else {
       setSnackbar({
         open: true,
@@ -589,24 +575,114 @@ export const MappingTab: React.FC = () => {
     }
   };
 
-  const handleSaveEdit = () => {
-    if (editState) {
-      setMappings(prev => prev.map(mapping =>
-        mapping.id === editState.id
-          ? { 
-              ...mapping, 
-              targetField: editState.targetField,
-              targetType: editState.targetType,
-              target_column: editState.targetColumnId
-            }
-          : mapping
-      ));
+  const handleSaveEdit = async () => {
+    if (!editState) {
+      setSnackbar({
+        open: true,
+        message: 'No changes to save',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Check if target field is actually changed
+    const originalMapping = mappings.find(mapping => mapping.id === editState.id);
+    if (!originalMapping) {
+      setSnackbar({
+        open: true,
+        message: 'Original mapping not found',
+        severity: 'error'
+      });
+      return;
+    }
+
+    // If target field is not changed, show notification and close dropdown
+    if (originalMapping.targetField === editState.targetField && 
+        originalMapping.target_column === editState.targetColumnId) {
       setEditState(null);
       setTargetColumns([]);
       setSnackbar({
         open: true,
-        message: 'Mapping updated successfully!',
-        severity: 'success'
+        message: 'You did not modify the mapping',
+        severity: 'info'
+      });
+      return;
+    }
+
+    // Prepare payload for API call
+    const payload: MappingUpdatePayload[] = [{
+      source_column: editState.sourceColumnId,
+      target_column: editState.targetColumnId,
+      source_object_id: selectedObject?.object_id || '',
+      target_object_id: selectedTargetObjectId || mappedTargetObject?.id || '',
+      project: selectedProject?.id || '',
+      environment: selectedEnvironment?.id || ''
+    }];
+
+    try {
+      const response = await fetch('https://api-dev.datamatter.tech/migration/v1/field/mapping/', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const result = await response.text();
+        
+        // Find the selected target column details to update icons
+        const selectedTargetColumn = targetColumns.find(col => col.target_column === editState.targetColumnId);
+        
+        // Update only the specific mapping with new data - no full page reload
+        setMappings(prev => prev.map(mapping =>
+          mapping.id === editState.id
+            ? { 
+                ...mapping, 
+                targetField: editState.targetField,
+                targetType: editState.targetType,
+                target_column: editState.targetColumnId,
+                // Update target field properties based on selected column
+                targetIsRequired: selectedTargetColumn?.is_required === 'true',
+                targetIsText: selectedTargetColumn?.is_text === 'true',
+                targetIsPk: selectedTargetColumn?.is_pk === 'true',
+                targetIsFk: selectedTargetColumn?.is_fk === 'true',
+                targetIsDate: selectedTargetColumn?.is_date === 'true',
+                targetIsDatetime: selectedTargetColumn?.is_datetime === 'true',
+                targetIsInteger: selectedTargetColumn?.is_integer === 'true',
+                targetIsFloat: selectedTargetColumn?.is_float === 'true',
+                targetIsPicklist: selectedTargetColumn?.is_picklist === 'true',
+                targetDatatype: selectedTargetColumn?.datatype || ''
+              }
+            : mapping
+        ));
+        
+        // Close edit mode and clear target columns
+        setEditState(null);
+        setTargetColumns([]);
+        
+        // Refetch data to ensure persistence across tab switches
+        // This invalidates the cache and gets fresh data from the server
+        refetch();
+
+        // Show success message
+        setSnackbar({
+          open: true,
+          message: result || 'Mapping Updated Successfully',
+          severity: 'success'
+        });
+        
+      } else {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to update mapping');
+      }
+    } catch (error) {
+      console.error('Error updating mapping:', error);
+      setSnackbar({
+        open: true,
+        message: `Failed to update mapping: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'error'
       });
     }
   };
@@ -636,7 +712,6 @@ export const MappingTab: React.FC = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
-  // Check if there's a type mismatch warning
   const hasTypeMismatch = (mapping: MappingPair) => {
     if (mapping.sourceIsPicklist !== mapping.targetIsPicklist) return true;
     if (mapping.sourceIsDate !== mapping.targetIsDate) return true;
@@ -649,10 +724,7 @@ export const MappingTab: React.FC = () => {
     mapping.targetField.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Get current target system name for display
   const currentTargetSystem = targetSystems.find(system => system.id === targetSystemId);
-  
-  // Get selected target object name for display
   const selectedTargetObject = targetObjects.find(obj => obj.object_id === selectedTargetObjectId) || mappedTargetObject;
 
   if (!selectedObject) {
@@ -684,26 +756,22 @@ export const MappingTab: React.FC = () => {
               Entity Mapped to: {mappedTargetObject.name} ({currentTargetSystem?.name || 'Target System'})
             </Typography>
           )}
-          {selectedTargetObject && selectedTargetObjectId && (
-            <Typography variant="body2" color="info.main" sx={{ mt: 0.5 }}>
-              Currently Selected: {selectedTargetObject.name}
-            </Typography>
-          )}
-          {!mappedTargetObject && currentTargetSystem && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Target System: {currentTargetSystem.name}
-            </Typography>
-          )}
         </Box>
-        
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={() => refetch()}
-          disabled={isFetching || isMappingInProgress}
-        >
-          Refresh
-        </Button>
+
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ToggleButton
+            activity="Mapping"
+            disabled={false}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => refetch()}
+            disabled={isFetching || isMappingInProgress}
+          >
+            Refresh
+          </Button>
+        </Box>
       </Box>
 
       {/* Controls Card */}
@@ -723,32 +791,13 @@ export const MappingTab: React.FC = () => {
                   <MenuItem value="">
                     <em>Select target object</em>
                   </MenuItem>
-                  {targetObjects.length > 0 ? (
-                    targetObjects.map(object => (
-                      <MenuItem 
-                        key={object.object_id} 
-                        value={object.object_id}
-                      >
-                        {object.name}
-                        {object.object_id === mappedTargetObject?.id && (
-                          <Typography variant="caption" color="primary" sx={{ ml: 1 }}>
-                            (Entity Mapped)
-                          </Typography>
-                        )}
-                      </MenuItem>
-                    ))
-                  ) : (
-                    <MenuItem value="" disabled>
-                      No target objects available
+                  {targetObjects.map(object => (
+                    <MenuItem key={object.object_id} value={object.object_id}>
+                      {object.name}
                     </MenuItem>
-                  )}
+                  ))}
                 </Select>
               </FormControl>
-              {mappedTargetObject && !selectedTargetObjectId && (
-                <Typography variant="caption" color="warning.main" sx={{ mt: 0.5 }}>
-                  Entity mapping exists but not selected
-                </Typography>
-              )}
             </Grid>
 
             <Grid item xs={12} md={4}>
@@ -772,11 +821,7 @@ export const MappingTab: React.FC = () => {
                     color="primary"
                     size="large"
                   >
-                    {isMappingInProgress ? (
-                      <CircularProgress size={24} />
-                    ) : (
-                      <AutoFixIcon />
-                    )}
+                    {isMappingInProgress ? <CircularProgress size={24} /> : <AutoFixIcon />}
                   </IconButton>
                 </span>
               </Tooltip>
@@ -814,8 +859,7 @@ export const MappingTab: React.FC = () => {
             <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
               <CircularProgress size={16} />
               <Typography variant="caption" color="text.secondary">
-                AI mapping in progress... 
-                {currentTaskId && ` (Task: ${currentTaskId.slice(0, 8)}...)`}
+                AI mapping in progress...
               </Typography>
             </Box>
           )}
@@ -851,28 +895,50 @@ export const MappingTab: React.FC = () => {
         <Box>
           {/* Table Header */}
           <Paper elevation={1} sx={{ mb: 1 }}>
-            <Grid container sx={{ p: 2, backgroundColor: 'grey.100' }}>
-              <Grid item xs={2}>
+            <Box sx={{ 
+              display: 'flex', 
+              p: 1.5, 
+              backgroundColor: 'grey.100', 
+              alignItems: 'center'
+            }}>
+              <Box sx={{ width: '18%' }}>
                 <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
                   Sample Data
                 </Typography>
-              </Grid>
-              <Grid item xs={4}>
-                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" textAlign="center">
+              </Box>
+              
+              <Box sx={{ width: '25%', display: 'flex', justifyContent: 'center' }}>
+                {/* Swap Icon Column Header */}
+              </Box>
+              
+              <Box sx={{ width: '25%' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
                   Source
                 </Typography>
-              </Grid>
-              <Grid item xs={1}>
-                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" textAlign="center">
-                  
-                </Typography>
-              </Grid>
-              <Grid item xs={5}>
-                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" textAlign="center">
+              </Box>
+              
+              <Box sx={{ width: '25%', display: 'flex', justifyContent: 'center' }}>
+                {/* Swap Icon Column Header */}
+              </Box>
+              
+              <Box sx={{ width: '25%' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
                   Target
                 </Typography>
-              </Grid>
-            </Grid>
+              </Box>
+              
+              <Box sx={{ width: '12%', textAlign: 'center' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                  Picklist
+                </Typography>
+              </Box>
+              
+              <Box sx={{ width: '12%', textAlign: 'center' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                  Actions
+                </Typography>
+              </Box>
+            </Box>
           </Paper>
 
           {/* Mapping Rows */}
@@ -895,131 +961,172 @@ export const MappingTab: React.FC = () => {
                     }
                   }}
                 >
-                  <Grid container sx={{ p: 1.5, alignItems: 'center' }}>
-                    {/* Sample Data Column */}
-                    <Grid item xs={2}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    p: 1, 
+                    alignItems: 'center'
+                  }}>
+                    {/* Sample Data Column - 18% */}
+                    <Box sx={{ 
+                      width: '18%', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 0.5
+                    }}>
+                      <DragIcon sx={{ 
+                        color: 'grey.400', 
+                        fontSize: 16,
+                        flexShrink: 0 
+                      }} />
+                      <Tooltip title={mapping.sampleValue || 'No sample data'} arrow>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            fontFamily: 'monospace',
+                            fontSize: '0.7rem',
+                            color: 'text.secondary',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: 1
+                          }}
+                        >
+                          {mapping.sampleValue || '-'}
+                        </Typography>
+                      </Tooltip>
+                    </Box>
+
+                    {/* First Swap Icon Column - 4% */}
+                    <Box sx={{ 
+                      width: '25%', 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center'
+                    }}>
+                      <SwapIcon sx={{ 
+                        color: 'primary.main', 
+                        fontSize: 18 
+                      }} />
+                    </Box>
+
+                    {/* Source Field - 25% */}
+                    <Box sx={{ 
+                      width: '25%', 
+                      display: 'flex', 
+                      alignItems: 'center'
+                    }}>
                       <Box sx={{ 
                         display: 'flex', 
-                        alignItems: 'center',
-                        gap: 1
+                        alignItems: 'center', 
+                        minWidth: 0, 
+                        flex: 1,
+                        gap: 0.5
                       }}>
-                        <DragIcon sx={{ color: 'grey.400', fontSize: 20 }} />
-                        <Tooltip title={mapping.sampleValue || 'No sample data'} arrow>
+                        {hasMismatch && (
+                          <Tooltip title="Type mismatch detected">
+                            <WarningIcon sx={{ 
+                              color: 'warning.main', 
+                              fontSize: 16,
+                              flexShrink: 0 
+                            }} />
+                          </Tooltip>
+                        )}
+                        
+                        <Tooltip title={mapping.sourceField} arrow placement="top">
                           <Typography 
-                            variant="body2" 
+                            variant="body2"
+                            fontWeight="medium"
+                            noWrap
                             sx={{ 
-                              fontFamily: 'monospace',
-                              fontSize: '0.75rem',
-                              color: 'text.secondary',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              maxWidth: '180px'
+                              flex: 1
                             }}
                           >
-                            {mapping.sampleValue || '-'}
+                            {mapping.sourceField}
                           </Typography>
                         </Tooltip>
                       </Box>
-                    </Grid>
-
-                    {/* Source Field */}
-                    <Grid item xs={4}>
+                      
+                      {/* Source Icons - Compact */}
                       <Box sx={{ 
                         display: 'flex', 
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        px: 1,
-                        width: '100%',
-                        gap: 1
+                        alignItems: 'center', 
+                        gap: 0.3,
+                        flexShrink: 0, 
+                        ml: 0.5
                       }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
-                          {/* Warning Icon for Mismatch */}
-                          {hasMismatch && (
-                            <Tooltip title="Type mismatch detected">
-                              <span>
-                                <WarningIcon sx={{ color: 'warning.main', fontSize: 18 }} />
-                              </span>
-                            </Tooltip>
-                          )}
-                          
-                          {/* Field Name */}
-                          <Typography variant="body1" fontWeight="medium">
-                            {mapping.sourceField}
-                          </Typography>
-                        </Box>
-                        
-                        {/* All Source Field Icons */}
-                        <Box sx={{ display: 'flex', gap: 0.3, alignItems: 'center', flexShrink: 0 }}>
-                          {/* Text/Type Icon */}
-                          <Tooltip title={mapping.sourceIsText ? "Text" : "Not text"}>
-                            <TextIcon 
-                              sx={{ 
-                                fontSize: 16,
-                                color: mapping.sourceIsText ? 'primary.main' : 'grey.300' 
-                              }} 
-                            />
-                          </Tooltip>
-                          
-                          {/* Timezone Icon */}
-                          <Tooltip title={mapping.sourceTimezone || "No timezone"}>
-                            <TimezoneIcon 
-                              sx={{ 
-                                fontSize: 16, 
-                                color: mapping.sourceTimezone ? 'info.main' : 'grey.300' 
-                              }} 
-                            />
-                          </Tooltip>
-                          
-                          {/* Calendar/Date Icon */}
-                          <Tooltip title={(mapping.sourceIsDate || mapping.sourceIsDatetime) ? "Date field" : "Not a date"}>
-                            <CalendarIcon 
-                              sx={{ 
-                                fontSize: 16, 
-                                color: (mapping.sourceIsDate || mapping.sourceIsDatetime) ? 'success.main' : 'grey.300' 
-                              }} 
-                            />
-                          </Tooltip>
-                          
-                          {/* Primary/Foreign Key Icon */}
-                          <Tooltip title={mapping.sourceIsPk ? "Primary Key" : mapping.sourceIsFk ? "Foreign Key" : "No key"}>
-                            <KeyIcon 
-                              sx={{ 
-                                fontSize: 16, 
-                                color: mapping.sourceIsPk ? 'primary.main' : mapping.sourceIsFk ? 'secondary.main' : 'grey.300' 
-                              }} 
-                            />
-                          </Tooltip>
-                          
-                          {/* Required Icon */}
-                          <Tooltip title={mapping.sourceIsRequired ? "Required" : "Optional"}>
-                            <RequiredIcon 
-                              sx={{ 
-                                fontSize: 16, 
-                                color: mapping.sourceIsRequired ? 'error.main' : 'grey.300' 
-                              }} 
-                            />
-                          </Tooltip>
-                        </Box>
+                        <Tooltip title={mapping.sourceIsText ? "Text" : "Not text"}>
+                          <TextIcon sx={{ 
+                            fontSize: 14,
+                            color: mapping.sourceIsText ? 'primary.main' : 'grey.300' 
+                          }} />
+                        </Tooltip>
+                        <Tooltip title={mapping.sourceTimezone || "No timezone"}>
+                          <TimezoneIcon sx={{ 
+                            fontSize: 14,
+                            color: mapping.sourceTimezone ? 'info.main' : 'grey.300' 
+                          }} />
+                        </Tooltip>
+                        <Tooltip title={(mapping.sourceIsDate || mapping.sourceIsDatetime) ? "Date field" : "Not a date"}>
+                          <CalendarIcon sx={{ 
+                            fontSize: 14,
+                            color: (mapping.sourceIsDate || mapping.sourceIsDatetime) ? 'success.main' : 'grey.300' 
+                          }} />
+                        </Tooltip>
+                        <Tooltip title={mapping.sourceIsPk ? "Primary Key" : mapping.sourceIsFk ? "Foreign Key" : "No key"}>
+                          <KeyIcon sx={{ 
+                            fontSize: 14,
+                            color: mapping.sourceIsPk ? 'primary.main' : mapping.sourceIsFk ? 'secondary.main' : 'grey.300' 
+                          }} />
+                        </Tooltip>
+                        <Tooltip title={mapping.sourceIsRequired ? "Required" : "Optional"}>
+                          <RequiredIcon sx={{ 
+                            fontSize: 14,
+                            color: mapping.sourceIsRequired ? 'error.main' : 'grey.300' 
+                          }} />
+                        </Tooltip>
                       </Box>
-                    </Grid>
+                    </Box>
 
-                    {/* Arrow/Toggle Column */}
-                    <Grid item xs={1} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                      <SwapIcon sx={{ color: 'primary.main', fontSize: 22 }} />
-                    </Grid>
+                    {/* Second Swap Icon Column - 4% */}
+                    <Box sx={{ 
+                      width: '25%', 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center'
+                    }}>
+                      <SwapIcon sx={{ 
+                        color: 'primary.main', 
+                        fontSize: 18 
+                      }} />
+                    </Box>
 
-                    {/* Target Field */}
-                    <Grid item xs={5}>
+                    {/* Target Field - 25% */}
+                    <Box sx={{ 
+                      width: '25%', 
+                      display: 'flex', 
+                      alignItems: 'center'
+                    }}>
                       {isEditing ? (
-                        // Edit Mode
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', px: 1 }}>
+                        // Edit Mode - Show dropdown with icons
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          width: '100%', 
+                          gap: 0.5
+                        }}>
                           <FormControl size="small" sx={{ flex: 1 }}>
                             {isLoadingTargetColumns ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
-                                <CircularProgress size={16} />
-                                <Typography variant="body2" color="text.secondary">
-                                  Loading target columns...
+                              <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 0.5,
+                                p: 0.5
+                              }}>
+                                <CircularProgress size={14} />
+                                <Typography variant="caption" color="text.secondary">
+                                  Loading...
                                 </Typography>
                               </Box>
                             ) : (
@@ -1027,68 +1134,161 @@ export const MappingTab: React.FC = () => {
                                 value={editState.targetField}
                                 onChange={handleTargetFieldChange}
                                 displayEmpty
+                                size="small"
+                                fullWidth
                               >
                                 <MenuItem value="" disabled>
                                   Select target field
                                 </MenuItem>
-                                {targetColumns.length > 0 ? (
-                                  targetColumns.map(column => (
-                                    <MenuItem key={column.target_column} value={column.name}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography>{column.name}</Typography>
-                                        <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
-                                          {/* Target Field Icons in Dropdown */}
-                                          {column.is_required === 'true' && (
-                                            <Tooltip title="Required">
-                                              <RequiredIcon sx={{ fontSize: 14, color: 'error.main' }} />
-                                            </Tooltip>
-                                          )}
-                                          {column.is_text === 'true' && (
-                                            <Tooltip title="Text">
-                                              <TextIcon sx={{ fontSize: 14, color: 'primary.main' }} />
-                                            </Tooltip>
-                                          )}
-                                          {column.is_pk === 'true' && (
-                                            <Tooltip title="Primary Key">
-                                              <KeyIcon sx={{ fontSize: 14, color: 'primary.main' }} />
-                                            </Tooltip>
-                                          )}
-                                          {column.is_fk === 'true' && (
-                                            <Tooltip title="Foreign Key">
-                                              <KeyIcon sx={{ fontSize: 14, color: 'secondary.main' }} />
-                                            </Tooltip>
-                                          )}
-                                          {(column.is_date === 'true' || column.is_datetime === 'true') && (
-                                            <Tooltip title="Date/Time">
-                                              <CalendarIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                                            </Tooltip>
-                                          )}
-                                          {column.is_picklist === 'true' && (
-                                            <Tooltip title="Picklist">
-                                              <TableIcon sx={{ fontSize: 14, color: 'warning.main' }} />
-                                            </Tooltip>
-                                          )}
-                                        </Box>
+                                {targetColumns.map(column => (
+                                  <MenuItem 
+                                    key={column.target_column} 
+                                    value={column.name}
+                                  >
+                                    <Box sx={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      width: '100%',
+                                      gap: 0.5
+                                    }}>
+                                      <Typography variant="body2" sx={{ flex: 1 }}>
+                                        {column.name}
+                                      </Typography>
+                                      <Box sx={{ display: 'flex', gap: 0.2 }}>
+                                        {column.is_text === 'true' && (
+                                          <TextIcon sx={{ fontSize: 12, color: 'primary.main' }} />
+                                        )}
+                                        {column.is_required === 'true' && (
+                                          <RequiredIcon sx={{ fontSize: 12, color: 'error.main' }} />
+                                        )}
+                                        {column.is_pk === 'true' && (
+                                          <KeyIcon sx={{ fontSize: 12, color: 'primary.main' }} />
+                                        )}
+                                        {column.is_picklist === 'true' && (
+                                          <TableIcon sx={{ fontSize: 12, color: 'warning.main' }} />
+                                        )}
                                       </Box>
-                                    </MenuItem>
-                                  ))
-                                ) : (
-                                  <MenuItem value="" disabled>
-                                    No target columns available
+                                    </Box>
                                   </MenuItem>
-                                )}
+                                ))}
                               </Select>
                             )}
                           </FormControl>
+                        </Box>
+                      ) : (
+                        // View Mode - Show field name and icons
+                        <>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            minWidth: 0, 
+                            flex: 1,
+                            gap: 0.5
+                          }}>
+                            <Tooltip title={mapping.targetField} arrow placement="top">
+                              <Typography 
+                                variant="body2"
+                                fontWeight="medium"
+                                noWrap
+                                sx={{ 
+                                  opacity: mapping.isMapped ? 1 : 0.5,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  flex: 1
+                                }}
+                              >
+                                {mapping.targetField}
+                              </Typography>
+                            </Tooltip>
+                          </Box>
                           
+                          {/* Target Icons - Compact */}
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 0.3,
+                            flexShrink: 0, 
+                            ml: 0.5
+                          }}>
+                            <Tooltip title={mapping.targetIsText ? "Text" : "Not text"}>
+                              <TextIcon sx={{ 
+                                fontSize: 14,
+                                color: mapping.targetIsText ? 'primary.main' : 'grey.300' 
+                              }} />
+                            </Tooltip>
+                            <Tooltip title={mapping.targetTimezone || "No timezone"}>
+                              <TimezoneIcon sx={{ 
+                                fontSize: 14,
+                                color: mapping.targetTimezone ? 'info.main' : 'grey.300' 
+                              }} />
+                            </Tooltip>
+                            <Tooltip title={(mapping.targetIsDate || mapping.targetIsDatetime) ? "Date field" : "Not a date"}>
+                              <CalendarIcon sx={{ 
+                                fontSize: 14,
+                                color: (mapping.targetIsDate || mapping.targetIsDatetime) ? 'success.main' : 'grey.300' 
+                              }} />
+                            </Tooltip>
+                            <Tooltip title={mapping.targetIsPk ? "Primary Key" : mapping.targetIsFk ? "Foreign Key" : "No key"}>
+                              <KeyIcon sx={{ 
+                                fontSize: 14,
+                                color: mapping.targetIsPk ? 'primary.main' : mapping.targetIsFk ? 'secondary.main' : 'grey.300' 
+                              }} />
+                            </Tooltip>
+                            <Tooltip title={mapping.targetIsRequired ? "Required" : "Optional"}>
+                              <RequiredIcon sx={{ 
+                                fontSize: 14,
+                                color: mapping.targetIsRequired ? 'error.main' : 'grey.300' 
+                              }} />
+                            </Tooltip>
+                          </Box>
+                        </>
+                      )}
+                    </Box>
+
+                    {/* Picklist Column - 8% */}
+                    <Box sx={{ 
+                      width: '12%', 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center' 
+                    }}>
+                      {isEditing ? (
+                        // In edit state, keep the picklist icon stable
+                        <Tooltip title={mapping.targetIsPicklist ? "Picklist field" : "Not a picklist"}>
+                          <TableIcon sx={{ 
+                            fontSize: 16,
+                            color: mapping.targetIsPicklist ? 'warning.main' : 'grey.300' 
+                          }} />
+                        </Tooltip>
+                      ) : (
+                        <Tooltip title={mapping.targetIsPicklist ? "Picklist field" : "Not a picklist"}>
+                          <TableIcon sx={{ 
+                            fontSize: 16,
+                            color: mapping.targetIsPicklist ? 'warning.main' : 'grey.300' 
+                          }} />
+                        </Tooltip>
+                      )}
+                    </Box>
+
+                    {/* Actions Column - 12% */}
+                    <Box sx={{ 
+                      width: '12%', 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center' 
+                    }}>
+                      {isEditing ? (
+                        // In edit state, show Save and Cancel icons instead of Edit icon
+                        <Box sx={{ display: 'flex', gap: 0.3 }}>
                           <Tooltip title="Save">
                             <IconButton 
                               size="small" 
                               onClick={handleSaveEdit}
                               color="primary"
                               disabled={isLoadingTargetColumns}
+                              sx={{ p: 0.3 }}
                             >
-                              <SaveIcon />
+                              <SaveIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Cancel">
@@ -1096,118 +1296,29 @@ export const MappingTab: React.FC = () => {
                               size="small" 
                               onClick={handleCancelEdit}
                               disabled={isLoadingTargetColumns}
+                              sx={{ p: 0.3 }}
                             >
-                              <CancelIcon />
+                              <CancelIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                           </Tooltip>
                         </Box>
                       ) : (
-                        // View Mode
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          px: 1,
-                          width: '100%',
-                          gap: 1,
-                          opacity: mapping.isMapped ? 1 : 0.5
-                        }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
-                            {/* Field Name */}
-                            <Typography 
-                              variant="body1" 
-                              fontWeight="medium"
+                        // In view state, show Edit icon
+                        <Tooltip title="Edit mapping">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEdit(mapping)}
+                              disabled={!mapping.isMapped || isMappingInProgress || isReadOnly}
+                              sx={{ p: 0.3 }}
                             >
-                              {mapping.targetField}
-                            </Typography>
-                          </Box>
-                          
-                          {/* Icons Container */}
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
-                            {/* All Target Field Icons */}
-                            <Box sx={{ display: 'flex', gap: 0.3, alignItems: 'center' }}>
-                              {/* Text/Type Icon */}
-                              <Tooltip title={mapping.targetIsText ? "Text" : "Not text"}>
-                                <TextIcon 
-                                  sx={{ 
-                                    fontSize: 16,
-                                    color: mapping.targetIsText ? 'primary.main' : 'grey.300' 
-                                  }} 
-                                />
-                              </Tooltip>
-                              
-                              {/* Timezone Icon */}
-                              <Tooltip title={mapping.targetTimezone || "No timezone"}>
-                                <TimezoneIcon 
-                                  sx={{ 
-                                    fontSize: 16, 
-                                    color: mapping.targetTimezone ? 'info.main' : 'grey.300' 
-                                  }} 
-                                />
-                              </Tooltip>
-                              
-                              {/* Calendar/Date Icon */}
-                              <Tooltip title={(mapping.targetIsDate || mapping.targetIsDatetime) ? "Date field" : "Not a date"}>
-                                <CalendarIcon 
-                                  sx={{ 
-                                    fontSize: 16, 
-                                    color: (mapping.targetIsDate || mapping.targetIsDatetime) ? 'success.main' : 'grey.300' 
-                                  }} 
-                                />
-                              </Tooltip>
-                              
-                              {/* Primary/Foreign Key Icon */}
-                              <Tooltip title={mapping.targetIsPk ? "Primary Key" : mapping.targetIsFk ? "Foreign Key" : "No key"}>
-                                <KeyIcon 
-                                  sx={{ 
-                                    fontSize: 16, 
-                                    color: mapping.targetIsPk ? 'primary.main' : mapping.targetIsFk ? 'secondary.main' : 'grey.300' 
-                                  }} 
-                                />
-                              </Tooltip>
-                              
-                              {/* Required Icon */}
-                              <Tooltip title={mapping.targetIsRequired ? "Required" : "Optional"}>
-                                <RequiredIcon 
-                                  sx={{ 
-                                    fontSize: 16, 
-                                    color: mapping.targetIsRequired ? 'error.main' : 'grey.300' 
-                                  }} 
-                                />
-                              </Tooltip>
-                            </Box>
-                            
-                            {/* Action Icons */}
-                            <Box sx={{ display: 'flex', gap: 0.3, ml: 0.5 }}>
-                              {/* Picklist/Table Icon */}
-                              <Tooltip title={mapping.targetIsPicklist ? "Picklist field" : "Not a picklist"}>
-                                <TableIcon 
-                                  sx={{ 
-                                    fontSize: 18,
-                                    color: mapping.targetIsPicklist ? 'warning.main' : 'grey.300' 
-                                  }} 
-                                />
-                              </Tooltip>
-                              
-                              {/* Edit Icon */}
-                              <Tooltip title="Edit mapping">
-                                <span>
-                                  <IconButton 
-                                    size="small" 
-                                    onClick={() => handleEdit(mapping)}
-                                    disabled={!mapping.isMapped || isMappingInProgress}
-                                    sx={{ p: 0.3 }}
-                                  >
-                                    <EditIcon sx={{ fontSize: 16 }} />
-                                  </IconButton>
-                                </span>
-                              </Tooltip>
-                            </Box>
-                          </Box>
-                        </Box>
+                              <EditIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
                       )}
-                    </Grid>
-                  </Grid>
+                    </Box>
+                  </Box>
                 </Paper>
               );
             })}

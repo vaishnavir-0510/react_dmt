@@ -6,24 +6,35 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import type { RootState } from '../../store';
 import { MigrationTabs } from './MigrationTabs';
 import { setSelectedObject, setActiveTab } from '../../store/slices/migrationSlice';
+import { setActiveMenu } from '../../store/slices/appSlice';
 import type { MigrationTab } from '../../types';
+import { ActivityProvider } from './ActivityProvider';
 
 export const MigrationLayout: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const { objectId, tabName } = useParams<{ objectId: string; tabName: MigrationTab }>();
-  const { selectedObject, migrationName } = useSelector((state: RootState) => state.migration);
+  const { selectedObject, migrationName, activeTab } = useSelector((state: RootState) => state.migration);
+  const { activeMenu } = useSelector((state: RootState) => state.app);
+
+  // Ensure sidebar menu is set to 'entities' when in migration
+  useEffect(() => {
+    if (activeMenu !== 'entities') {
+      dispatch(setActiveMenu('entities'));
+    }
+  }, [activeMenu, dispatch]);
 
   // Validate and set active tab from URL
   useEffect(() => {
     if (tabName && ['summary','relationship', 'filter', 'metadata', 'cleanup', 'transform', 'mapping', 'validate', 'load', 'error', 'workflows'].includes(tabName)) {
       dispatch(setActiveTab(tabName as MigrationTab));
-    } else if (objectId) {
-      // Redirect to default tab if invalid
-      navigate(`/migration/${objectId}/summary`, { replace: true });
+    } else if (objectId && !tabName) {
+      // If we have an objectId but no tabName in URL, redirect to activeTab or default to summary
+      const targetTab = activeTab && activeTab !== 'summary' ? activeTab : 'summary';
+      navigate(`/migration/${objectId}/${targetTab}`, { replace: true });
     }
-  }, [tabName, objectId, dispatch, navigate]);
+  }, [tabName, objectId, activeTab, dispatch, navigate]);
 
   // Load object data if not already loaded
   useEffect(() => {
@@ -31,17 +42,29 @@ export const MigrationLayout: React.FC = () => {
       // Try to load from localStorage
       const storedObjects = localStorage.getItem('migration_objects');
       if (storedObjects) {
-        const objects = JSON.parse(storedObjects);
-        const object = objects.find((obj: any) => obj.object_id === objectId);
-        if (object) {
-          dispatch(setSelectedObject(object));
-          return;
+        try {
+          const objects = JSON.parse(storedObjects);
+          const object = objects.find((obj: any) => obj.object_id === objectId);
+          if (object) {
+            dispatch(setSelectedObject(object));
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to parse migration objects from localStorage:', error);
         }
       }
       
-      // If object not found in localStorage, redirect to entities
-      console.warn('Object not found, redirecting to entities');
-      navigate('/entities');
+      // If object not found in localStorage, try to fetch from API or redirect
+      console.warn('Object not found in localStorage, attempting to load from API...');
+      // You can add API call here if needed
+      
+      // If still not found after a moment, redirect to entities
+      const timer = setTimeout(() => {
+        console.warn('Object not found, redirecting to entities');
+        navigate('/entities');
+      }, 1000);
+      
+      return () => clearTimeout(timer);
     }
   }, [objectId, selectedObject, dispatch, navigate]);
 
@@ -71,6 +94,7 @@ export const MigrationLayout: React.FC = () => {
     );
   }
 
+  // Show loading state while object is being loaded
   if (!selectedObject || selectedObject.object_id !== objectId) {
     return (
       <Box sx={{ flexGrow: 1 }}>
@@ -145,7 +169,9 @@ export const MigrationLayout: React.FC = () => {
         </Paper>
 
         {/* Migration Tabs */}
-        <MigrationTabs objectId={objectId} />
+        <ActivityProvider>
+          <MigrationTabs objectId={objectId} />
+        </ActivityProvider>
       </Container>
     </Box>
   );

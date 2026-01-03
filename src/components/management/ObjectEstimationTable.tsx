@@ -15,9 +15,9 @@ import {
   CardContent,
   Grid,
 } from '@mui/material';
-import { 
-  useGetProjectSummaryQuery, 
-  type ProjectObjectEstimation 
+import {
+  useGetProjectSummaryQuery,
+  type ProjectObjectEstimation
 } from '../../services/projectEstimatorApi';
 
 export const ObjectEstimationTable: React.FC = () => {
@@ -87,15 +87,15 @@ export const ObjectEstimationTable: React.FC = () => {
           </TableHead>
           <TableBody>
             {summaryData.map((object: ProjectObjectEstimation) => (
-              <TableRow 
+              <TableRow
                 key={object.Object_name}
-                sx={{ 
+                sx={{
                   '&:hover': { backgroundColor: 'action.hover' },
                   '&:last-child td, &:last-child th': { border: 0 }
                 }}
               >
-                <TableCell 
-                  component="th" 
+                <TableCell
+                  component="th"
                   scope="row"
                   sx={{ fontWeight: 'medium' }}
                 >
@@ -105,7 +105,7 @@ export const ObjectEstimationTable: React.FC = () => {
                   const effort = object.Info.find((info) => info.activity === activity)?.efforts || 0;
                   return (
                     <TableCell key={`${object.Object_name}-${activity}`} align="center">
-                      <Chip 
+                      <Chip
                         label={effort}
                         size="small"
                         variant="outlined"
@@ -115,7 +115,7 @@ export const ObjectEstimationTable: React.FC = () => {
                   );
                 })}
                 <TableCell align="center">
-                  <Chip 
+                  <Chip
                     label={object.total_efforts}
                     size="medium"
                     color="primary"
@@ -150,7 +150,7 @@ export const ObjectEstimationTable: React.FC = () => {
                 Average Effort
               </Typography>
               <Typography variant="h4" color="secondary" fontWeight="bold">
-                {summaryData.length > 0 
+                {summaryData.length > 0
                   ? Math.round(summaryData.reduce((sum: number, obj: ProjectObjectEstimation) => sum + obj.total_efforts, 0) / summaryData.length)
                   : 0
                 } hrs

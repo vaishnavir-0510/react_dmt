@@ -34,11 +34,12 @@ export const objectsApi = createApi({
       if (token) {
         headers.set('authorization', `Bearer ${token}`);
       }
+      headers.set('Accept', 'application/json');
       headers.set('Content-Type', 'application/json');
       return headers;
     },
   }),
-  tagTypes: ['Objects'],
+  tagTypes: ['Objects', 'CompoundFields', 'MetadataFields', 'PicklistValues'],
   endpoints: (builder) => ({
     getObjectsBySystem: builder.query<ObjectData[], string>({
       query: (systemId) => `/management/v2/system/${systemId}/objects`,
@@ -67,6 +68,18 @@ export const objectsApi = createApi({
       }),
       invalidatesTags: ['Objects'],
     }),
+    getCompoundFields: builder.query<any[], string>({
+      query: (objectId) => `/migration/metadata/object/compound/${objectId}`,
+      providesTags: ['CompoundFields'],
+    }),
+    getMetadataFields: builder.query<any[], string>({
+      query: (objectId) => `/migration/metadata/object/${objectId}`,
+      providesTags: ['MetadataFields'],
+    }),
+    getPicklistValues: builder.query<{ picklist_values: string[]; count: number }, { objectId: string; fieldId: string }>({
+      query: ({ objectId, fieldId }) => `/migration/v1/object/${objectId}/picklist_values/${fieldId}`,
+      providesTags: ['PicklistValues'],
+    }),
   }),
 });
 
@@ -75,4 +88,7 @@ export const {
   useCreateObjectMutation,
   useUpdateObjectMutation,
   useDeleteObjectMutation,
+  useGetCompoundFieldsQuery,
+  useGetMetadataFieldsQuery,
+  useGetPicklistValuesQuery,
 } = objectsApi;

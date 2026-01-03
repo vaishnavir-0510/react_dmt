@@ -1,3 +1,4 @@
+// components/workspace/WorkspaceInitializer.tsx
 import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../store';
@@ -5,7 +6,6 @@ import { useWorkspace } from '../../hooks/useWorkspace';
 import { setSelectedEnvironment } from '../../store/slices/appSlice';
 import { useGetEnvironmentsByProjectQuery } from '../../services/environmentApi';
 
-// This component initializes workspace data when the app loads
 export const WorkspaceInitializer: React.FC = () => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
@@ -14,17 +14,17 @@ export const WorkspaceInitializer: React.FC = () => {
 
   // Fetch environments for workspace project to set initial environment
   const { data: environments = [] } = useGetEnvironmentsByProjectQuery(
-    currentWorkspaceProjectId || '', 
+    currentWorkspaceProjectId || '',
     { skip: !currentWorkspaceProjectId }
   );
 
   useEffect(() => {
     if (isAuthenticated) {
       // Fetch workspace and projects when authenticated
-      refetchWorkspace();
-      refetchProjects();
+      // The queries will automatically start due to the skip condition being false
+      // No need to manually refetch as RTK Query handles this
     }
-  }, [isAuthenticated, refetchWorkspace, refetchProjects]);
+  }, [isAuthenticated]);
 
   // Set initial environment from workspace
   useEffect(() => {
@@ -36,5 +36,5 @@ export const WorkspaceInitializer: React.FC = () => {
     }
   }, [currentWorkspaceEnvironmentId, environments, dispatch]);
 
-  return null; // This component doesn't render anything
+  return null;
 };

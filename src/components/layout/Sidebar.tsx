@@ -193,11 +193,19 @@ export const Sidebar: React.FC = () => {
     }
   }, [selectedProject]);
 
+  // Clear selected environment if it doesn't belong to current project
+  useEffect(() => {
+    if (selectedEnvironment && environments.length > 0 && !environments.some(env => env.id === selectedEnvironment.id)) {
+      dispatch(setSelectedEnvironment(null));
+    }
+  }, [environments, selectedEnvironment, dispatch]);
+
   return (
     <Drawer
-      variant="permanent"
+      variant="persistent"
+      open={isSidebarOpen}
       sx={{
-        width: 280,
+        width: isSidebarOpen ? 280 : 0,
         flexShrink: 0,
         [`& .MuiDrawer-paper`]: {
           width: 280,
@@ -206,6 +214,10 @@ export const Sidebar: React.FC = () => {
           height: 'calc(100vh - 64px)',
           top: 'auto',
           left: 'auto',
+          transition: (theme) => theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
         },
       }}
     >
@@ -537,28 +549,33 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
       description: object.description || '',
       is_completed: object.is_completed,
     };
-    
+
     dispatch(setSelectedObject(migrationObject));
-    
+
     // Also store in localStorage for persistence
     try {
       const storedObjects = localStorage.getItem('migration_objects');
       let objects = storedObjects ? JSON.parse(storedObjects) : [];
-      
+
       // Remove existing object with same ID if exists
       objects = objects.filter((obj: any) => obj.object_id !== object.object_id);
-      
+
       // Add new object
       objects.push(migrationObject);
-      
+
       localStorage.setItem('migration_objects', JSON.stringify(objects));
     } catch (error) {
       console.error('Failed to store object in localStorage:', error);
     }
-    
-    // Navigate to migration layout with default tab
-    navigate(`/migration/${object.object_id}/summary`);
-  }, [dispatch, navigate]);
+
+    // Get current tab from URL to preserve it when switching objects
+    const currentPath = location.pathname;
+    const migrationMatch = currentPath.match(/\/migration\/[^\/]+\/([^\/]+)/);
+    const currentTab = migrationMatch ? migrationMatch[1] : 'summary';
+
+    // Navigate to migration layout with current tab preserved
+    navigate(`/migration/${object.object_id}/${currentTab}`);
+  }, [dispatch, navigate, location.pathname]);
 
   const completedObjectsCount = objects.filter(obj => obj.is_completed).length;
   const totalObjectsCount = objects.length;

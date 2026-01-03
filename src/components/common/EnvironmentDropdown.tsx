@@ -13,14 +13,20 @@ import type { RootState } from '../../store';
 import { setSelectedEnvironment, clearSelectedEnvironment } from '../../store/slices/appSlice';
 import type { Environment } from '../../types';
 import { useGetEnvironmentsByProjectQuery } from '../../services/environmentApi';
+import { useUpdateEnvironmentWorkspaceMutation, useGetUserWorkspaceQuery } from '../../services/workspaceApi';
 
 export const EnvironmentDropdown: React.FC = () => {
   const dispatch = useDispatch();
-  const { selectedEnvironment, selectedProject } = useSelector((state: RootState) => state.app);
+  const { selectedEnvironment, selectedProject, currentView } = useSelector((state: RootState) => state.app);
+  const { accessToken } = useSelector((state: RootState) => state.auth);
+  const [updateEnvironmentWorkspace] = useUpdateEnvironmentWorkspaceMutation();
+  const { refetch: refetchWorkspace } = useGetUserWorkspaceQuery(undefined, {
+    skip: !accessToken,
+  });
 
   // Fetch environments for the currently selected project
-  const { 
-    data: environments = [], 
+  const {
+    data: environments = [],
     isLoading: isLoadingEnvironments,
     error: environmentsError,
     isFetching: isFetchingEnvironments
@@ -40,12 +46,30 @@ export const EnvironmentDropdown: React.FC = () => {
     if (selectedProject && environments.length > 0 && !selectedEnvironment) {
       const firstEnvironment = environments[0];
       dispatch(setSelectedEnvironment(firstEnvironment));
+      updateEnvironmentWorkspace({ environment: firstEnvironment.id })
+        .unwrap()
+        .then(() => refetchWorkspace())
+        .catch(console.error);
     }
-  }, [environments, selectedEnvironment, selectedProject, dispatch]);
+  }, [environments, selectedEnvironment, selectedProject, dispatch, updateEnvironmentWorkspace, refetchWorkspace]);
+
+  // Clear selected environment if it doesn't belong to current project
+  useEffect(() => {
+    if (selectedEnvironment && environments.length > 0 && !environments.some(env => env.id === selectedEnvironment.id)) {
+      dispatch(clearSelectedEnvironment());
+    }
+  }, [environments, selectedEnvironment, dispatch]);
+
+  // Also clear if selectedEnvironment exists but is invalid
+  useEffect(() => {
+    if (selectedEnvironment && (!selectedEnvironment.id || !selectedEnvironment.name)) {
+      dispatch(clearSelectedEnvironment());
+    }
+  }, [selectedEnvironment, dispatch]);
 
   const handleChange = (event: SelectChangeEvent) => {
     const environmentId = event.target.value;
-    
+
     if (!environmentId) {
       dispatch(clearSelectedEnvironment());
       return;
@@ -54,6 +78,10 @@ export const EnvironmentDropdown: React.FC = () => {
     const environment = environments.find(env => env.id === environmentId);
     if (environment) {
       dispatch(setSelectedEnvironment(environment));
+      updateEnvironmentWorkspace({ environment: environment.id })
+        .unwrap()
+        .then(() => refetchWorkspace())
+        .catch(console.error);
     }
   };
 
@@ -63,7 +91,9 @@ export const EnvironmentDropdown: React.FC = () => {
       <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
         <InputLabel>Environment</InputLabel>
         <Select label="Environment" value="" disabled>
-          <MenuItem value="">Select project first</MenuItem>
+          <MenuItem value="">
+            {currentView === 'settings' ? 'Select environment' : 'Select project first'}
+          </MenuItem>
         </Select>
       </FormControl>
     );
@@ -118,18 +148,22 @@ export const EnvironmentDropdown: React.FC = () => {
     return '';
   };
 
+  // In settings view, show placeholder instead of selected environment
+  const isSettingsView = currentView === 'settings';
+
   return (
     <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
       <InputLabel>Environment</InputLabel>
       <Select
-        value={getCurrentValue()}
+        value={isSettingsView ? '' : getCurrentValue()}
         onChange={handleChange}
         label="Environment"
+        disabled={isSettingsView}
       >
         <MenuItem value="">
-          <em>Select environment</em>
+          <em>{isSettingsView ? 'Select environment' : 'Select environment'}</em>
         </MenuItem>
-        {environments.map((environment) => (
+        {!isSettingsView && environments.map((environment) => (
           <MenuItem key={environment.id} value={environment.id}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
               <span>{environment.name}</span>
@@ -137,9 +171,9 @@ export const EnvironmentDropdown: React.FC = () => {
                 <Box
                   sx={{
                     fontSize: '0.7rem',
-                    color: environment.type === 'prod' ? 'error.main' : 
-                           environment.type === 'dev' ? 'primary.main' : 
-                           environment.type === 'qa' ? 'secondary.main' : 'text.secondary',
+                    color: environment.type === 'prod' ? 'error.main' :
+                      environment.type === 'dev' ? 'primary.main' :
+                        environment.type === 'qa' ? 'secondary.main' : 'text.secondary',
                     fontWeight: 'bold',
                   }}
                 >

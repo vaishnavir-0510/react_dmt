@@ -8,119 +8,110 @@ import {
   Grid,
   Card,
   CardContent,
-  Chip,
   Alert,
+  Tabs,
+  Tab,
   LinearProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  CircularProgress,
-  Tooltip,
 } from '@mui/material';
 import {
-  CheckCircle as CheckCircleIcon,
-  Warning as WarningIcon,
   Person as PersonIcon,
   CalendarToday as CalendarIcon,
   Business as BusinessIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
 } from '@mui/icons-material';
+
 import type { RootState } from '../store';
 import { useWorkspace } from '../hooks/useWorkspace';
-import { useGetObjectEstimatorStatusQuery } from '../services/estimatorApi';
-import type { ObjectEstimator } from '../types';
+import { useGetMigrationStatusQuery } from '../services/dashboardApi';
 
 export const Dashboard: React.FC = () => {
-  const { selectedProject, selectedEnvironment } = useSelector((state: RootState) => state.app);
+  const { selectedProject, selectedEnvironment } = useSelector(
+    (state: RootState) => state.app
+  );
   const { user } = useSelector((state: RootState) => state.auth);
   const { workspace, currentWorkspaceProjectId } = useWorkspace();
-  
-  // Fetch estimator data
-  const { 
-    data: estimatorData = [], 
-    isLoading: isLoadingEstimator, 
-    error: estimatorError 
-  } = useGetObjectEstimatorStatusQuery();
 
-  // Group estimator data by object name
-  const groupedEstimatorData = estimatorData.reduce((acc, item) => {
-    if (!acc[item.Object_name]) {
-      acc[item.Object_name] = [];
+  const [activeTab, setActiveTab] = React.useState(0);
+
+  const {
+    data: migrationData = [],
+    isLoading,
+    isFetching,
+  } = useGetMigrationStatusQuery(
+    {
+      projectId: selectedProject?.id!,
+      environmentId: selectedEnvironment?.id!,
+    },
+    {
+      skip: !selectedProject || !selectedEnvironment,
     }
-    acc[item.Object_name].push(item);
-    return acc;
-  }, {} as Record<string, ObjectEstimator[]>);
+  );
 
-  // Get all unique activities from the data
-  const allActivities = Array.from(new Set(estimatorData.map(item => item.activity))).sort();
-
-  // Calculate overall completion percentage
-  const overallCompletion = estimatorData.length > 0 
-    ? Math.round((estimatorData.filter(item => item.is_completed).length / estimatorData.length) * 100)
-    : 0;
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     });
-  };
 
-  const getActivityIcon = (isCompleted: boolean, completion: number) => {
-    if (isCompleted) {
-      return (
-        <Tooltip title={`Completed (${completion}%)`}>
-          <CheckCircleIcon 
-            color="success" 
-            fontSize="medium"
-            sx={{ 
-              backgroundColor: '#1976d2', // Blue background
-              color: 'white',
-              borderRadius: '50%',
-              padding: '4px'
-            }} 
-          />
-        </Tooltip>
-      );
-    } else {
-      return (
-        <Tooltip title={`In Progress (${completion}%)`}>
-          <WarningIcon 
-            color="warning" 
-            fontSize="medium"
-            sx={{ 
-              backgroundColor: '#ff9800', // Yellow/Orange background
-              color: 'white',
-              borderRadius: '50%',
-              padding: '4px'
-            }} 
-          />
-        </Tooltip>
-      );
-    }
-  };
+  /* --------------------------------
+     Data Transformations
+  -------------------------------- */
 
-  // Get activity status for a specific object and activity
-  const getActivityStatus = (objectName: string, activity: string) => {
-    const objectActivities = groupedEstimatorData[objectName] || [];
-    return objectActivities.find(item => item.activity === activity);
-  };
+  // Unique activities (columns)
+  const activities = Array.from(
+    new Set(migrationData.map((item) => item.activity))
+  );
+
+  // Group by object
+  const groupedByObject = migrationData.reduce((acc: any, curr) => {
+    if (!acc[curr.Object_name]) acc[curr.Object_name] = [];
+    acc[curr.Object_name].push(curr);
+    return acc;
+  }, {});
+
+  /* --------------------------------
+     🔵 Overall Progress Calculation
+  -------------------------------- */
+
+  const totalActivities = migrationData.length;
+
+  const completedActivities = migrationData.filter(
+    (item) => item.completion > 0
+  ).length;
+
+  const overallProgress =
+    totalActivities === 0
+      ? 0
+      : Math.round((completedActivities / totalActivities) * 100);
+
+  /* --------------------------------
+     Data Load Progress (per object)
+  -------------------------------- */
+
+  const dataLoadProgress = Object.keys(groupedByObject).map((objectName) => {
+    const items = groupedByObject[objectName];
+    const avgCompletion =
+      items.reduce((sum: number, i: any) => sum + i.completion, 0) /
+      items.length;
+
+    return {
+      objectName,
+      progress: Math.round(avgCompletion),
+    };
+  });
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom fontWeight="bold">
+      <Typography variant="h4" fontWeight="bold" gutterBottom>
         Dashboard
       </Typography>
-      
-      {/* Show workspace info */}
+
+      {/* Workspace Info */}
       {workspace && (
         <Alert severity="info" sx={{ mb: 3 }}>
-          <Typography variant="h6">
-            Current Workspace
-          </Typography>
+          <Typography variant="h6">Current Workspace</Typography>
           <Typography variant="body2">
             <strong>User:</strong> {workspace.user}
           </Typography>
@@ -134,306 +125,198 @@ export const Dashboard: React.FC = () => {
           )}
         </Alert>
       )}
-      
-      {/* Show selected project info prominently */}
+
+      {/* Project Info */}
       {selectedProject && (
         <Alert severity="success" sx={{ mb: 3 }}>
           <Typography variant="h6">
             Currently working on: <strong>{selectedProject.name}</strong>
           </Typography>
-          {selectedProject.description && selectedProject.description !== 'None' && (
-            <Typography variant="body2">
-              {selectedProject.description}
-            </Typography>
-          )}
-          {selectedProject.status && (
-            <Chip 
-              label={selectedProject.status} 
-              color={
-                selectedProject.status === 'Active' ? 'success' :
-                selectedProject.status === 'InProgress' ? 'warning' :
-                'default'
-              }
-              size="small"
-              sx={{ mt: 1 }}
-            />
-          )}
         </Alert>
       )}
-      
-      {/* Project Details Container */}
+
+      {/* Project Details */}
       {selectedProject && (
         <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h5" component="h2" gutterBottom fontWeight="medium">
+          <Typography variant="h5" gutterBottom>
             Project Details
           </Typography>
+
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <PersonIcon color="primary" />
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Project Owner
-                  </Typography>
-                  <Typography variant="body1" fontWeight="medium">
-                    {selectedProject.owner_name || selectedProject.owner_id || 'N/A'}
-                  </Typography>
-                </Box>
-              </Box>
+            <Grid item xs={12} md={3}>
+              <PersonIcon /> {selectedProject.owner_name || 'N/A'}
             </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <CalendarIcon color="primary" />
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Start Date
-                  </Typography>
-                  <Typography variant="body1" fontWeight="medium">
-                    {selectedProject.start_date ? formatDate(selectedProject.start_date) : 'N/A'}
-                  </Typography>
-                </Box>
-              </Box>
+            <Grid item xs={12} md={3}>
+              <CalendarIcon />{' '}
+              {selectedProject.start_date
+                ? formatDate(selectedProject.start_date)
+                : 'N/A'}
             </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <CalendarIcon color="primary" />
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    End Date
-                  </Typography>
-                  <Typography variant="body1" fontWeight="medium">
-                    {selectedProject.end_date ? formatDate(selectedProject.end_date) : 'N/A'}
-                  </Typography>
-                </Box>
-              </Box>
+            <Grid item xs={12} md={3}>
+              <CalendarIcon />{' '}
+              {selectedProject.end_date
+                ? formatDate(selectedProject.end_date)
+                : 'N/A'}
             </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <BusinessIcon color="primary" />
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Client
-                  </Typography>
-                  <Typography variant="body1" fontWeight="medium">
-                    {selectedProject.client || 'N/A'}
-                  </Typography>
-                </Box>
-              </Box>
+            <Grid item xs={12} md={3}>
+              <BusinessIcon /> {selectedProject.client || 'N/A'}
             </Grid>
           </Grid>
         </Paper>
       )}
 
-      {/* Progress Bar Container */}
-      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h5" component="h2" gutterBottom fontWeight="medium">
-          Migration Progress
-        </Typography>
-        
-        <Box sx={{ mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="body1" fontWeight="medium">
-              Overall Completion
-            </Typography>
-            <Typography variant="body1" fontWeight="bold" color="primary">
-              {overallCompletion}%
-            </Typography>
-          </Box>
-          <LinearProgress 
-            variant="determinate" 
-            value={overallCompletion} 
-            sx={{ 
-              height: 10, 
-              borderRadius: 5,
-              backgroundColor: 'grey.300',
-              '& .MuiLinearProgress-bar': {
-                backgroundColor: overallCompletion === 100 ? 'success.main' : 'primary.main',
-                borderRadius: 5,
-              }
-            }}
-          />
-        </Box>
-        
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" component="div" fontWeight="bold" color="primary">
-                {estimatorData.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Activities
-              </Typography>
-            </Box>
-          </Grid>
-          
-          <Grid item xs={12} sm={6} md={3}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" component="div" fontWeight="bold" color="success.main">
-                {estimatorData.filter(item => item.is_completed).length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Completed
-              </Typography>
-            </Box>
-          </Grid>
-          
-          <Grid item xs={12} sm={6} md={3}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" component="div" fontWeight="bold" color="warning.main">
-                {estimatorData.filter(item => !item.is_completed).length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Pending
-              </Typography>
-            </Box>
-          </Grid>
-          
-          <Grid item xs={12} sm={6} md={3}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" component="div" fontWeight="bold" color="info.main">
-                {Object.keys(groupedEstimatorData).length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Objects
-              </Typography>
-            </Box>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {/* Estimator Data Table */}
-      <Paper elevation={2} sx={{ p: 3 }}>
-        <Typography variant="h5" component="h2" gutterBottom fontWeight="medium">
-          Object Migration Status
-        </Typography>
-
-        {isLoadingEstimator ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : estimatorError ? (
-          <Alert severity="error">
-            Failed to load migration status data.
-          </Alert>
-        ) : estimatorData.length === 0 ? (
-          <Alert severity="info">
-            No migration data available.
-          </Alert>
-        ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'grey.100' }}>
-                    Object Name
-                  </TableCell>
-                  {/* Dynamic activity headers */}
-                  {allActivities.map(activity => (
-                    <TableCell 
-                      key={activity} 
-                      sx={{ fontWeight: 'bold', backgroundColor: 'grey.100', textAlign: 'center' }}
-                    >
-                      {activity}
-                    </TableCell>
-                  ))}
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'grey.100', textAlign: 'center' }}>
-                    Overall Status
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {Object.entries(groupedEstimatorData).map(([objectName, activities]) => {
-                  // Calculate object-specific completion
-                  const completedActivities = activities.filter(activity => activity.is_completed).length;
-                  const objectCompletion = activities.length > 0 
-                    ? Math.round((completedActivities / activities.length) * 100)
-                    : 0;
-
-                  // Check if all activities are completed
-                  const isObjectCompleted = objectCompletion === 100;
-
-                  return (
-                    <TableRow key={objectName} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
-                      <TableCell sx={{ fontWeight: 'medium' }}>
-                        {objectName}
-                      </TableCell>
-                      
-                      {/* Dynamic activity columns */}
-                      {allActivities.map(activity => {
-                        const activityStatus = getActivityStatus(objectName, activity);
-                        return (
-                          <TableCell key={`${objectName}-${activity}`} sx={{ textAlign: 'center' }}>
-                            {activityStatus ? (
-                              getActivityIcon(activityStatus.is_completed, activityStatus.completion)
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">
-                                N/A
-                              </Typography>
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                      
-                      {/* Overall Status */}
-                      <TableCell sx={{ textAlign: 'center' }}>
-                        {getActivityIcon(isObjectCompleted, objectCompletion)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Paper>
-
-      {/* Original Dashboard Cards */}
-      <Grid container spacing={3} sx={{ mt: 2 }}>
+      {/* Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
-          <Card elevation={3}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom>
-                Current Session
-              </Typography>
-              <Typography variant="body1" gutterBottom>
-                <strong>User:</strong> {user?.user || 'N/A'}
-              </Typography>
-              <Typography variant="body1">
-                <strong>User ID:</strong> {user?.user_id || 'N/A'}
-              </Typography>
+              <Typography variant="h6">Current Session</Typography>
+              <Typography>User: {user?.user}</Typography>
+              <Typography>User ID: {user?.user_id}</Typography>
               {currentWorkspaceProjectId && (
-                <Typography variant="body1" sx={{ mt: 1 }}>
-                  <strong>Workspace Project ID:</strong> {currentWorkspaceProjectId}
+                <Typography>
+                  Workspace Project ID: {currentWorkspaceProjectId}
                 </Typography>
               )}
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} md={6}>
-          <Card elevation={3}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom>
-                Selected Configuration
+              <Typography variant="h6">Selected Configuration</Typography>
+              <Typography>
+                Project: {selectedProject?.name || 'None'}
               </Typography>
-              <Typography variant="body1" gutterBottom>
-                <strong>Project:</strong> {selectedProject?.name || 'None selected'}
+              <Typography>
+                Environment: {selectedEnvironment?.name || 'None'}
               </Typography>
-              <Typography variant="body1" gutterBottom>
-                <strong>Environment:</strong> {selectedEnvironment?.name || 'None selected'}
-              </Typography>
-              {selectedProject?.status && (
-                <Typography variant="body1">
-                  <strong>Project Status:</strong> {selectedProject.status}
-                </Typography>
-              )}
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+
+      {/* -------------------------------
+         🔵 Overall Migration Progress
+      -------------------------------- */}
+      <Paper elevation={3} sx={{ p: 2, mb: 2 }}>
+        <Typography fontWeight={600}>
+          Overall Migration Progress
+        </Typography>
+        <LinearProgress
+          variant="determinate"
+          value={overallProgress}
+          sx={{ height: 10, borderRadius: 5, mt: 1 }}
+        />
+        <Typography variant="caption">
+          {overallProgress}% completed
+        </Typography>
+      </Paper>
+
+      {/* -------------------------------
+         Tabs
+      -------------------------------- */}
+      <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+        <Tab label="Migration Process" />
+        <Tab label="Data Load Progress" />
+      </Tabs>
+
+      {/* -------------------------------
+         TAB 1: Migration Process
+      -------------------------------- */}
+      {activeTab === 0 && (
+        <Paper elevation={3} sx={{ mt: 3, p: 2, overflowX: 'auto' }}>
+          {(isLoading || isFetching) && (
+            <Typography>Loading migration status...</Typography>
+          )}
+
+          {!isLoading && (
+            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: 12, textAlign: 'left' }}>
+                    Object Name
+                  </th>
+                  {activities.map((activity) => (
+                    <th key={activity} style={{ padding: 12 }}>
+                      {activity}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {Object.keys(groupedByObject).map((objectName) => (
+                  <tr key={objectName}>
+                    <td style={{ padding: 12, fontWeight: 600 }}>
+                      {objectName}
+                    </td>
+
+                    {activities.map((activity) => {
+                      const data = groupedByObject[objectName].find(
+                        (i: any) => i.activity === activity
+                      );
+
+                      if (!data) return <td key={activity} />;
+
+                      const completed = data.completion > 0;
+
+                      return (
+                        <td key={activity} style={{ textAlign: 'center' }}>
+                          <Box
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '50%',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: completed ? '#1976d2' : '#fbc02d',
+                              color: '#fff',
+                            }}
+                          >
+                            {completed ? (
+                              <CheckCircleIcon fontSize="small" />
+                            ) : (
+                              <ErrorIcon fontSize="small" />
+                            )}
+                          </Box>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Paper>
+      )}
+
+      {/* -------------------------------
+         TAB 2: Data Load Progress
+      -------------------------------- */}
+      {activeTab === 1 && (
+        <Paper elevation={3} sx={{ mt: 3, p: 3 }}>
+          {dataLoadProgress.map((row) => (
+            <Box key={row.objectName} sx={{ mb: 3 }}>
+              <Typography fontWeight={600}>
+                {row.objectName}
+              </Typography>
+
+              <LinearProgress
+                variant="determinate"
+                value={row.progress}
+                sx={{ height: 10, borderRadius: 5, mt: 1 }}
+              />
+
+              <Typography variant="caption">
+                {row.progress}%
+              </Typography>
+            </Box>
+          ))}
+        </Paper>
+      )}
     </Box>
   );
 };

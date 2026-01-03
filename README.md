@@ -1,73 +1,110 @@
-# React + TypeScript + Vite
+# DMT App (Data Migration & Management Tool)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A comprehensive React-based application designed for managing complex data workflows, including data migration, file processing, system backups, and translation management. Built with modern web technologies for performance and scalability.
 
-Currently, two official plugins are available:
+## 🚀 Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 1. **Project & User Management**
 
-## React Compiler
+- **Dashboard**: Centralized hub for monitoring project status.
+- **User Management**: Administer users and permissions.
+- **Account & Project Settings**: Configure project-specific parameters.
+- **Entities Management**: Handle core data entities.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 2. **File Migration Workflow**
 
-## Expanding the ESLint configuration
+A robust, step-by-step wizard for processing file migrations:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Upload**: Secure file ingestion.
+- **Relationship Mapping**: Define data relationships.
+- **Filtering & Metadata**: Advanced data filtering and metadata extraction.
+- **Cleanup & Transformation**: Data sanitization and format transformation.
+- **Mapping & Validation**: Schema mapping and data validation.
+- **Load**: Execute the migration load process.
+- **Error Handling**: Detailed error reporting and resolution.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 3. **Backup & Disaster Recovery**
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- **Dashboard**: Overview of backup health.
+- **Jobs**: Schedule and monitor backup jobs.
+- **Restore**: Tools for system restoration.
+- **History**: Audit logs of past backup activities.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 4. **Translation Management**
+
+- **Dashboard**: Track translation progress.
+- **Language Packs**: Manage supported languages.
+- **Translation Memory**: Leverage existing translations for consistency.
+
+## 🛠️ Tech Stack
+
+- **Core**: [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Vite](https://vitejs.dev/)
+- **UI Framework**: [Material UI (MUI) v5](https://mui.com/)
+- **State Management**: [Redux Toolkit](https://redux-toolkit.js.org/)
+- **Routing**: [React Router v7](https://reactrouter.com/)
+- **Forms**: [React Hook Form](https://react-hook-form.com/) + [Yup](https://github.com/jquense/yup)
+- **Data Fetching**: [Axios](https://axios-http.com/)
+- **Visualization**: [Recharts](https://recharts.org/)
+- **Utilities**: `date-fns`, `react-dropzone`, `react-idle-timer`
+
+## 📦 Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone <repository-url>
+   cd dmt-app
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server**
+
+   ```bash
+   npm run dev
+   ```
+
+4. **Build for production**
+   ```bash
+   npm run build
+   ```
+
+## 📂 Project Structure
+
+```
+src/
+├── components/       # Reusable UI components
+│   ├── auth/         # Authentication related components
+│   ├── layout/       # Layout wrappers (Sidebar, Header, etc.)
+│   ├── migration/    # Migration-specific components
+│   └── ...
+├── pages/            # Page components matching routes
+│   ├── backup/       # Backup module pages
+│   ├── translation/  # Translation module pages
+│   └── ...
+├── store/            # Redux store configuration and slices
+├── services/         # API service calls
+├── hooks/            # Custom React hooks
+├── utils/            # Helper functions
+├── types/            # TypeScript type definitions
+└── App.tsx           # Main application component and routing
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 📜 Scripts
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `npm run dev`: Starts the development server.
+- `npm run build`: Compiles the application for production.
+- `npm run lint`: Runs ESLint to check for code quality issues.
+- `npm run preview`: Previews the production build locally.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 🔒 Authentication
+
+The application uses a `ProtectedRoute` component to ensure that sensitive routes (Dashboard, Migration, Backup, etc.) are accessible only to authenticated users.
+
+---
+
+_Generated by Antigravity_

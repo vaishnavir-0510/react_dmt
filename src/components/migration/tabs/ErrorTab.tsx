@@ -1,27 +1,856 @@
-
 // components/migration/tabs/ErrorTab.tsx
-import React from 'react';
-import { Typography, Box, Paper } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import {
+  Typography,
+  Box,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  Checkbox,
+  Button,
+  Switch,
+  FormControlLabel,
+  IconButton,
+  Chip,
+  Snackbar,
+  Alert,
+  CircularProgress,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+} from '@mui/material';
+import {
+  Edit as EditIcon,
+  Download as DownloadIcon,
+  Email as EmailIcon,
+  Block as IgnoreIcon,
+  Refresh as RefreshIcon,
+} from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../store';
+import { useGetErrorTrackerQuery, useUpdateErrorMutation, useGetErrorTrackerDataRecordsQuery, useUpdateErrorRecordMutation, useLazyEmailAllErrorRecordsQuery, useLoadAllErrorRecordsMutation, useLazyEmailErrorRecordQuery, useLazyIgnoreErrorRecordQuery, useLazyDownloadErrorCsvQuery } from '../../../services/errorApi';
+import { ToggleButton } from '../ToggleButton';
+import { useActivity } from '../ActivityProvider';
+
+interface ErrorRecord {
+  id: string;
+  iteration_reference: string;
+  error: string;
+  comment: string;
+  Fix: string;
+  Count: number;
+  object_id: string;
+  created_by: string;
+  modified_by: string;
+  created_date: string;
+  modified_date: string;
+  is_ignored: boolean;
+  environment: string;
+  is_current: boolean;
+  status: string;
+  reload_job: string | null;
+  remediation_default_action: string;
+  remediation_status: string | null;
+  object_name: string;
+}
+
+interface ErrorResponse {
+  records: ErrorRecord[];
+  page: number;
+  page_size: number;
+  total_records: number;
+  total_pages: number;
+}
 
 export const ErrorTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
+  const { getReadOnlyFlag, getActivityStatus } = useActivity();
+  const objectId = selectedObject?.object_id;
+
+  // State for pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // State for selected rows (single selection)
+  const [selected, setSelected] = useState<string>('');
+
+  // State for selected error record and data records
+  const [selectedErrorId, setSelectedErrorId] = useState<string | null>(null);
+  const [dataRecordsPage, setDataRecordsPage] = useState(0);
+  const [dataRecordsRowsPerPage, setDataRecordsRowsPerPage] = useState(50);
+
+  // State for data records editing
+  const [selectedDataRecordIndex, setSelectedDataRecordIndex] = useState<number | null>(null);
+  const [editDataRecordOpen, setEditDataRecordOpen] = useState(false);
+  const [editDataRecord, setEditDataRecord] = useState<Record<string, any>>({});
+
+  // State for bulk actions
+  const [isEmailAllLoading, setIsEmailAllLoading] = useState(false);
+  const [isLoadAllLoading, setIsLoadAllLoading] = useState(false);
+
+  // State for slide-in dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<ErrorRecord | null>(null);
+  const [editComment, setEditComment] = useState('');
+  const [editFix, setEditFix] = useState('');
+
+  // State for notifications
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error' | 'warning' | 'info',
+  });
+
+  // API calls
+  const {
+    data: errorData,
+    isLoading,
+    error,
+    refetch,
+  } = useGetErrorTrackerQuery(
+    { objectId, page: page + 1, pageSize: rowsPerPage },
+    { skip: !objectId }
+  );
+
+  // Refetch data when object changes
+  useEffect(() => {
+    if (objectId) {
+      setPage(0); // Reset to first page when object changes
+      refetch();
+    }
+  }, [objectId, refetch]);
+
+  // Refresh activity status when tab is accessed
+  useEffect(() => {
+    if (objectId) {
+      getActivityStatus(objectId);
+    }
+  }, [objectId, getActivityStatus]);
+
+  const [updateError] = useUpdateErrorMutation();
+  const [updateErrorRecord] = useUpdateErrorRecordMutation();
+  const [emailAllErrorRecords] = useLazyEmailAllErrorRecordsQuery();
+  const [loadAllErrorRecords] = useLoadAllErrorRecordsMutation();
+  const [emailErrorRecord] = useLazyEmailErrorRecordQuery();
+  const [ignoreErrorRecord] = useLazyIgnoreErrorRecordQuery();
+  const [downloadErrorCsv] = useLazyDownloadErrorCsvQuery();
+
+  // API for data records
+  const {
+    data: dataRecords,
+    isLoading: isLoadingDataRecords,
+    error: dataRecordsError,
+  } = useGetErrorTrackerDataRecordsQuery(
+    {
+      summaryId: selectedErrorId || '',
+      objectId: objectId || '',
+      page: dataRecordsPage + 1,
+      pageSize: dataRecordsRowsPerPage
+    },
+    { skip: !selectedErrorId || !objectId }
+  );
+
+  // Handle pagination
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleDataRecordsPageChange = (event: unknown, newPage: number) => {
+    setDataRecordsPage(newPage);
+  };
+
+  const handleDataRecordsRowsPerPageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setDataRecordsRowsPerPage(parseInt(event.target.value, 10));
+    setDataRecordsPage(0);
+  };
+
+  const handleDataRecordSelect = (index: number, record: Record<string, any>) => {
+    setSelectedDataRecordIndex(index);
+    setEditDataRecord({ ...record });
+    setEditDataRecordOpen(true);
+  };
+
+  const handleDataRecordEditClose = () => {
+    setEditDataRecordOpen(false);
+    setSelectedDataRecordIndex(null);
+    setEditDataRecord({});
+  };
+
+  const handleDataRecordEditSave = async () => {
+    if (!selectedErrorId || !objectId || selectedDataRecordIndex === null) return;
+
+    // Basic validation - check if any field is empty
+    const hasEmptyFields = Object.values(editDataRecord).some(value =>
+      value === null || value === undefined || String(value).trim() === ''
+    );
+
+    if (hasEmptyFields) {
+      setSnackbar({
+        open: true,
+        message: 'All fields are required',
+        severity: 'error',
+      });
+      return;
+    }
+
+    try {
+      await updateErrorRecord({
+        summaryId: selectedErrorId,
+        objectId: objectId,
+        recordData: editDataRecord
+      }).unwrap();
+
+      setSnackbar({
+        open: true,
+        message: 'Data record updated successfully!',
+        severity: 'success',
+      });
+      handleDataRecordEditClose();
+      // Optionally refetch data records
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to update data record',
+        severity: 'error',
+      });
+    }
+  };
+
+  const handleEditDataRecordChange = (field: string, value: any) => {
+    setEditDataRecord(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleEmailAll = async () => {
+    if (!objectId) return;
+
+    setIsEmailAllLoading(true);
+    try {
+      await emailAllErrorRecords(objectId).unwrap();
+      setSnackbar({
+        open: true,
+        message: 'Email sent successfully to all error records!',
+        severity: 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to send emails',
+        severity: 'error',
+      });
+    } finally {
+      setIsEmailAllLoading(false);
+    }
+  };
+
+  const handleLoadAll = async () => {
+    if (!objectId) return;
+
+    setIsLoadAllLoading(true);
+    try {
+      await loadAllErrorRecords(objectId).unwrap();
+      setSnackbar({
+        open: true,
+        message: 'Load file generated successfully!',
+        severity: 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to generate load file',
+        severity: 'error',
+      });
+    } finally {
+      setIsLoadAllLoading(false);
+    }
+  };
+
+  // Handle row selection (single selection)
+  const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // For single selection, select all doesn't make sense, so do nothing
+  };
+
+  const handleRowClick = (record: ErrorRecord) => {
+    setSelectedErrorId(record.id);
+    setSelected(record.id); // Also select the checkbox
+    setDataRecordsPage(0); // Reset to first page when selecting new error
+  };
+
+  const handleClick = (event: React.MouseEvent<unknown>, id: string) => {
+    setSelected(selected === id ? '' : id);
+  };
+
+  const isSelected = (id: string) => selected === id;
+
+  // Handle edit dialog
+  const handleEditClick = (record: ErrorRecord) => {
+    setEditingRecord(record);
+    setEditComment(record.comment || '');
+    setEditFix(record.Fix || '');
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingRecord) return;
+
+    try {
+      await updateError({
+        id: editingRecord.id,
+        comment: editComment,
+        Fix: editFix,
+      }).unwrap();
+
+      setSnackbar({
+        open: true,
+        message: 'Error record updated successfully!',
+        severity: 'success',
+      });
+      setEditDialogOpen(false);
+      refetch();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to update error record',
+        severity: 'error',
+      });
+    }
+  };
+
+  // Handle ignore toggle
+  const handleIgnoreToggle = async (record: ErrorRecord, currentIgnoreStatus: boolean) => {
+    if (!objectId) return;
+
+    try {
+      await ignoreErrorRecord({
+        errorTrackerId: record.id,
+        iterationId: record.iteration_reference,
+        objectId
+      }).unwrap();
+
+      setSnackbar({
+        open: true,
+        message: `Error ${!currentIgnoreStatus ? 'ignored' : 'unignored'} successfully!`,
+        severity: 'success',
+      });
+      refetch();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to update ignore status',
+        severity: 'error',
+      });
+    }
+  };
+
+  // Handle email action
+  const handleEmail = async (record: ErrorRecord) => {
+    if (!objectId) return;
+
+    try {
+      await emailErrorRecord({ errorId: record.id, objectId }).unwrap();
+      setSnackbar({
+        open: true,
+        message: 'Email sent successfully!',
+        severity: 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to send email',
+        severity: 'error',
+      });
+    }
+  };
+
+  // Handle download
+  const handleDownload = async (record: ErrorRecord) => {
+    if (!objectId) return;
+
+    try {
+      const result = await downloadErrorCsv({
+        errorId: record.id,
+        objectId,
+        iterationId: record.iteration_reference
+      }).unwrap();
+
+      // Assuming the API returns a file URL or blob, handle download
+      // For now, create a download link
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `error-${record.id}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setSnackbar({
+        open: true,
+        message: 'Error CSV downloaded successfully!',
+        severity: 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to download error CSV',
+        severity: 'error',
+      });
+    }
+  };
+
+  // Bulk actions removed for single selection
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  // Calculate values for checkbox states (single selection)
+  const recordCount = errorData?.records?.length || 0;
+  const isAllSelected = false; // No select all for single selection
+  const isSomeSelected = false; // No indeterminate for single selection
+
+  if (!selectedObject) {
+    return (
+      <Alert severity="info">
+        Please select an object to view error details.
+      </Alert>
+    );
+  }
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom fontWeight="bold">
-        Error Handling
-      </Typography>
-      <Typography variant="body1" color="text.secondary" paragraph>
-        Configure error handling for {selectedObject?.object_name}
-      </Typography>
-      
-      <Paper elevation={1} sx={{ p: 3, mt: 2 }}>
-        <Typography variant="body2">
-          Error handling content will be implemented here.
+      {/* Header Section */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h5" fontWeight="bold">
+          Resolve issues that you get during migration process
         </Typography>
+        
+        <Box display="flex" alignItems="center" gap={2}>
+          <ToggleButton
+            activity="Error Handling"
+            disabled={false}
+          />
+          <Button
+            variant="outlined"
+            startIcon={isEmailAllLoading ? <CircularProgress size={20} /> : <EmailIcon />}
+            onClick={handleEmailAll}
+            disabled={isEmailAllLoading || !objectId || getReadOnlyFlag('Error Handling')}
+          >
+            {isEmailAllLoading ? 'Sending...' : 'Email All'}
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleLoadAll}
+            disabled={isLoadAllLoading || !objectId || getReadOnlyFlag('Error Handling')}
+            startIcon={isLoadAllLoading ? <CircularProgress size={20} /> : null}
+          >
+            {isLoadAllLoading ? 'Generating...' : 'Load All'}
+          </Button>
+          <IconButton onClick={() => refetch()} disabled={!objectId || getReadOnlyFlag('Error Handling')}>
+            <RefreshIcon />
+          </IconButton>
+        </Box>
+      </Box>
+
+      {/* Error Table */}
+      <Paper elevation={2} sx={{ width: '100%', overflow: 'hidden' }}>
+        <TableContainer sx={{ maxHeight: 600 }}>
+          <Table stickyHeader aria-label="error table">
+            <TableHead>
+              <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    indeterminate={isSomeSelected}
+                    checked={isAllSelected}
+                    onChange={handleSelectAllClick}
+                  />
+                </TableCell>
+                <TableCell>Error Message</TableCell>
+                <TableCell>Count</TableCell>
+                <TableCell>Comment</TableCell>
+                <TableCell>Fix</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Ignored</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                    <CircularProgress />
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Loading error data...
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                    <Alert severity="error">
+                      Failed to load error data.
+                    </Alert>
+                  </TableCell>
+                </TableRow>
+              ) : recordCount === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No error records found.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                errorData?.records?.map((record) => {
+                  const isItemSelected = isSelected(record.id);
+                  return (
+                    <TableRow
+                      key={record.id}
+                      hover
+                      onClick={() => handleRowClick(record)}
+                      role="checkbox"
+                      aria-checked={isItemSelected}
+                      tabIndex={-1}
+                      selected={isItemSelected}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={isItemSelected}
+                          onClick={(event) => handleClick(event, record.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            maxWidth: 300,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                          title={record.error}
+                        >
+                          {record.error}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={record.Count} 
+                          size="small" 
+                          color="primary" 
+                          variant="outlined" 
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography 
+                          variant="body2"
+                          sx={{ 
+                            maxWidth: 200,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                          title={record.comment}
+                        >
+                          {record.comment || 'No comment'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography 
+                          variant="body2"
+                          sx={{ 
+                            maxWidth: 200,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                          title={record.Fix}
+                        >
+                          {record.Fix || 'No fix'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={record.status}
+                          color={record.status === 'failed' ? 'error' : 'default'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={record.is_ignored}
+                          onChange={() => handleIgnoreToggle(record, record.is_ignored)}
+                          onClick={(e) => e.stopPropagation()}
+                          color="warning"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={1} onClick={(e) => e.stopPropagation()}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditClick(record)}
+                            color="primary"
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEmail(record)}
+                            color="info"
+                          >
+                            <EmailIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDownload(record)}
+                            color="success"
+                          >
+                            <DownloadIcon />
+                          </IconButton>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Pagination */}
+        {errorData && (
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            component="div"
+            count={errorData.total_records}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        )}
       </Paper>
+
+      {/* Data Records Section */}
+      {selectedErrorId && (
+        <Box mt={4}>
+          <Typography variant="h6" gutterBottom>
+            Error Records for Selected Error
+          </Typography>
+          <Paper elevation={2} sx={{ width: '100%', overflow: 'hidden' }}>
+            <TableContainer sx={{ maxHeight: 600 }}>
+              <Table stickyHeader aria-label="data records table">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell padding="checkbox">Select</TableCell>
+                      {dataRecords?.records && dataRecords.records.length > 0 && Object.keys(dataRecords.records[0]).map((key) => (
+                        <TableCell key={key}>{key}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {isLoadingDataRecords ? (
+                      <TableRow>
+                        <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
+                          <CircularProgress />
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            Loading data records...
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : dataRecordsError ? (
+                      <TableRow>
+                        <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
+                          <Alert severity="error">
+                            Failed to load data records.
+                          </Alert>
+                        </TableCell>
+                      </TableRow>
+                    ) : dataRecords?.records && dataRecords.records.length > 0 ? (
+                      dataRecords.records.map((record, index) => (
+                        <TableRow key={index}>
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              checked={selectedDataRecordIndex === index}
+                              onChange={() => handleDataRecordSelect(index, record)}
+                            />
+                          </TableCell>
+                          {Object.values(record).map((value, idx) => (
+                            <TableCell key={idx}>
+                              <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {String(value)}
+                              </Typography>
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            No data records found.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+            </TableContainer>
+
+            {/* Pagination for Data Records */}
+            {dataRecords && (
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50, 100]}
+                component="div"
+                count={dataRecords.total_records}
+                rowsPerPage={dataRecordsRowsPerPage}
+                page={dataRecordsPage}
+                onPageChange={handleDataRecordsPageChange}
+                onRowsPerPageChange={handleDataRecordsRowsPerPageChange}
+              />
+            )}
+          </Paper>
+        </Box>
+      )}
+
+      {/* Edit Dialog */}
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Edit Error Record
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom>
+                Error Message:
+              </Typography>
+              <Paper variant="outlined" sx={{ p: 2, backgroundColor: 'grey.50' }}>
+                <Typography variant="body2" color="text.secondary">
+                  {editingRecord?.error}
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Comment"
+                fullWidth
+                multiline
+                rows={3}
+                value={editComment}
+                onChange={(e) => setEditComment(e.target.value)}
+                variant="outlined"
+                placeholder="Add your comments here..."
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Fix"
+                fullWidth
+                multiline
+                rows={3}
+                value={editFix}
+                onChange={(e) => setEditFix(e.target.value)}
+                variant="outlined"
+                placeholder="Describe the fix here..."
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleEditSave}
+            variant="contained"
+            disabled={!editComment && !editFix}
+          >
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Data Record Slide-in */}
+      <Dialog
+        open={editDataRecordOpen}
+        onClose={handleDataRecordEditClose}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Edit Data Record
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            {dataRecords?.records && selectedDataRecordIndex !== null && Object.keys(dataRecords.records[selectedDataRecordIndex]).map((key) => (
+              <Grid item xs={12} sm={6} key={key}>
+                <TextField
+                  label={key}
+                  fullWidth
+                  value={editDataRecord[key] || ''}
+                  onChange={(e) => handleEditDataRecordChange(key, e.target.value)}
+                  variant="outlined"
+                  required
+                  error={!editDataRecord[key] || String(editDataRecord[key]).trim() === ''}
+                  helperText={(!editDataRecord[key] || String(editDataRecord[key]).trim() === '') ? 'This field is required' : ''}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDataRecordEditClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDataRecordEditSave}
+            variant="contained"
+            disabled={Object.values(editDataRecord).some(value =>
+              value === null || value === undefined || String(value).trim() === ''
+            )}
+          >
+            Update Record
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

@@ -25,6 +25,8 @@ import {
   AutoFixHigh as ValidateIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import { ToggleButton } from '../ToggleButton';
+import { useActivity } from '../ActivityProvider';
 import { useGetValidateDataQuery } from '../../../services/validateApi';
 import { FixIssueSlideIn } from '../FixIssueSlideIn';
 import type { CleanupField } from '../../../types';
@@ -144,6 +146,7 @@ const TaskStatusIndicator: React.FC<{
 
 export const ValidateTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
+  const { getReadOnlyFlag, getActivityStatus } = useActivity();
   const [selectedField, setSelectedField] = useState<CleanupField | null>(null);
   const [fixIssueOpen, setFixIssueOpen] = useState(false);
   const [taskMap, setTaskMap] = useState<Record<number, string>>({}); // changeLogId -> taskId mapping
@@ -159,6 +162,20 @@ export const ValidateTab: React.FC = () => {
     { objectId: selectedObject?.object_id || '' },
     { skip: !selectedObject?.object_id }
   );
+
+  // Refetch data when object changes
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      refetch();
+    }
+  }, [selectedObject?.object_id, refetch]);
+
+  // Refresh activity status when tab is accessed
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      getActivityStatus(selectedObject.object_id);
+    }
+  }, [selectedObject?.object_id, getActivityStatus]);
 
   // Store task ID when a validate task is started
   const handleTaskStarted = (changeLogId: number, taskId: string) => {
@@ -314,14 +331,20 @@ export const ValidateTab: React.FC = () => {
         <Typography variant="h5" gutterBottom fontWeight="bold">
           Data Validation - {selectedObject.object_name}
         </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          Refresh
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ToggleButton
+            activity="Validate"
+            disabled={false}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => refetch()}
+            disabled={isFetching || getReadOnlyFlag('Validate')}
+          >
+            Refresh
+          </Button>
+        </Box>
       </Box>
       
       <Typography variant="body1" color="text.secondary" paragraph>

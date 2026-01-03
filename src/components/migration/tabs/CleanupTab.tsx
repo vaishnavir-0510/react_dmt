@@ -25,6 +25,8 @@ import {
   AutoFixHigh as CleanupIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import { ToggleButton } from '../ToggleButton';
+import { useActivity } from '../ActivityProvider';
 import { useGetCleanupDataQuery } from '../../../services/cleanupApi';
 import { FixIssueSlideIn } from '../FixIssueSlideIn';
 import type { CleanupField } from '../../../types';
@@ -144,6 +146,8 @@ const TaskStatusIndicator: React.FC<{
 
 export const CleanupTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
+  const { getReadOnlyFlag, getCompletionStatus, getActivityStatus } = useActivity();
+  const isReadOnly = getReadOnlyFlag('Cleanup');
   const [selectedField, setSelectedField] = useState<CleanupField | null>(null);
   const [fixIssueOpen, setFixIssueOpen] = useState(false);
   const [taskMap, setTaskMap] = useState<Record<number, string>>({}); // changeLogId -> taskId mapping
@@ -159,6 +163,20 @@ export const CleanupTab: React.FC = () => {
     { objectId: selectedObject?.object_id || '' },
     { skip: !selectedObject?.object_id }
   );
+
+  // Refetch data when object changes
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      refetch();
+    }
+  }, [selectedObject?.object_id, refetch]);
+
+  // Refresh activity status when tab is accessed
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      getActivityStatus(selectedObject.object_id);
+    }
+  }, [selectedObject?.object_id, getActivityStatus]);
 
   // Store task ID when a cleanup task is started
   const handleTaskStarted = (changeLogId: number, taskId: string) => {
@@ -242,6 +260,7 @@ export const CleanupTab: React.FC = () => {
             size="small"
             startIcon={<WarningIcon />}
             onClick={() => handleFixIssue(field)}
+            disabled={isReadOnly}
             sx={{ minWidth: '120px' }}
           >
             Fix Issue
@@ -310,24 +329,33 @@ export const CleanupTab: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h5" gutterBottom fontWeight="bold">
-          Data Cleanup - {selectedObject.object_name}
-        </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          Refresh
-        </Button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" gutterBottom fontWeight="bold">
+            Data Cleanup - {selectedObject.object_name}
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Review and fix data quality issues for {selectedObject.object_name}.
+            Fields with pending fixes require attention before migration.
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ToggleButton
+            activity="Cleanup"
+            disabled={false}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => refetch()}
+            disabled={isFetching || isReadOnly}
+          >
+            Refresh
+          </Button>
+        </Box>
       </Box>
       
-      <Typography variant="body1" color="text.secondary" paragraph>
-        Review and fix data quality issues for {selectedObject.object_name}. 
-        Fields with pending fixes require attention before migration.
-      </Typography>
 
       {fields.length === 0 ? (
         <Paper elevation={1} sx={{ p: 3, mt: 2 }}>

@@ -40,7 +40,7 @@ export interface Project {
   client?: string;
   client_website?: string;
   business_function?: string;
-  project_type?: string;
+  project_type?: 'migration' | 'backup' | 'translation' | 'file migration' | 'filemigration';
   owner_id?: string;
   owner_name?: string;
   project_manager?: string;
@@ -75,7 +75,7 @@ export interface ApiProject {
   is_deleted: boolean;
   tenant_key: string;
   user_count: number;
-  project_type: string;
+   project_type: 'migration' | 'backup' | 'translation' | 'file migration' | 'filemigration';
 }
 
 export interface System {
@@ -570,4 +570,32 @@ export interface CleanupRuleRequest {
   sequence?: number;
   tab_name?: string;
   validation_fun_id?: number | null;
+}
+export interface TransformDataRecord {
+  [key: string]: string | number;
+  Index: number;
+  "Customer Id": string;
+  "First Name": string;
+  "Last Name": string;
+  "Company": string;
+  "City": string;
+  "Country": string;
+  "Phone 1": string;
+  "Phone 2": string;
+  "Email": string;
+  "Subscription Date": string;
+  "Website": string;
+}
+
+export interface FilterDataRecord {
+  [key: string]: string | number;
+}
+
+export interface FilterDataResponse {
+  filename: string;
+  page: number;
+  page_size: number;
+  total_records: number;
+  total_pages: number;
+  contents: FilterDataRecord[];
 }

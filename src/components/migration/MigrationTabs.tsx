@@ -10,15 +10,17 @@ import { RelationshipTab } from './tabs/RelationshipTab';
 import { FilterTab } from './tabs/FilterTab';
 import { MetadataTab } from './tabs/MetadataTab';
 import { CleanupTab } from './tabs/CleanupTab';
-import { TransformTab } from './tabs/TransformTab';
 import { MappingTab } from './tabs/MappingTab';
 import { ValidateTab } from './tabs/ValidateTab';
 import { LoadTab } from './tabs/LoadTab';
 import { ErrorTab } from './tabs/ErrorTab';
 import { WorkflowsTab } from './tabs/WorkflowsTab';
-import { SummaryTab } from './tabs/SummaryTab';
 
-const tabLabels: Record<MigrationTab, string> = {  summary: 'summary',
+import { TransformTab } from './tabs/TransformTab';
+import SummaryTab from './tabs/SummaryTab';
+
+const tabLabels: Record<MigrationTab, string> = {  
+  summary: 'Summary',
   relationship: 'Relationship',
   filter: 'Filter',
   metadata: 'Metadata',
@@ -51,7 +53,8 @@ export const MigrationTabs: React.FC<MigrationTabsProps> = ({ objectId }) => {
   const renderTabContent = () => {
     if (!selectedObject) return null;
 
-    switch (currentTab) {   case 'summary':
+    switch (currentTab) {   
+      case 'summary':
         return <SummaryTab />;
       case 'relationship':
         return <RelationshipTab />;

@@ -352,8 +352,8 @@ export const Account: React.FC = () => {
                       />
                     </TableCell>
                     <TableCell sx={{ py: 1 }}>
-                      <Chip 
-                        label={project.project_type} 
+                      <Chip
+                        label={project.project_type === 'file migration' ? 'FILE MIGRATION' : project.project_type}
                         size="small"
                         color="secondary"
                         variant="outlined"

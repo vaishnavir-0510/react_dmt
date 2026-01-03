@@ -10,72 +10,123 @@ interface AppState {
   activeMenu: string;
   isSettingsMenuOpen: boolean;
   currentView: 'application' | 'settings';
+  currentApp: 'migration' | 'backup' | 'translation' | 'file migration' | null;
 }
 
-// Helper function to determine view and menu from URL
-const getInitialStateFromUrl = (): Partial<AppState> => {
-  if (typeof window === 'undefined') {
-    return {};
+// Load initial state from localStorage for persistence
+const loadInitialState = (): AppState => {
+  try {
+    const stored = localStorage.getItem('app_state');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+
+      // Validate that the stored state has the correct structure
+      if (parsed && typeof parsed === 'object') {
+        return {
+          selectedProject: parsed.selectedProject || null,
+          selectedEnvironment: parsed.selectedEnvironment || null,
+          selectedSystem: parsed.selectedSystem || null,
+          isSidebarOpen: parsed.isSidebarOpen !== undefined ? parsed.isSidebarOpen : true,
+          activeMenu: parsed.activeMenu || 'dashboard',
+          isSettingsMenuOpen: parsed.isSettingsMenuOpen || false,
+          currentView: parsed.currentView || 'application',
+          currentApp: parsed.currentApp || 'migration',
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load app state from localStorage:', error);
   }
 
-  const path = window.location.pathname;
-  
+  // Fallback to URL-based initialization
+  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+
   // Settings routes
   const settingsRoutes = ['/account', '/users', '/projects'];
   const isSettingsRoute = settingsRoutes.includes(path);
-  
+
   if (isSettingsRoute) {
     let activeMenu = 'account';
-    
-    // Map routes to active menu
     if (path === '/users') activeMenu = 'user';
     if (path === '/projects') activeMenu = 'project';
-    
+
     return {
-      currentView: 'settings',
+      selectedProject: null,
+      selectedEnvironment: null,
+      selectedSystem: null,
+      isSidebarOpen: true,
+      activeMenu,
       isSettingsMenuOpen: true,
-      activeMenu,
+      currentView: 'settings',
+      currentApp: null,
     };
   }
-  
-  // Application routes (including migration)
-  const applicationRoutes = ['/dashboard', '/entities', '/management'];
-  const isMigrationRoute = path.startsWith('/migration');
-  const isApplicationRoute = applicationRoutes.includes(path) || isMigrationRoute;
-  
-  if (isApplicationRoute || isMigrationRoute) {
+
+  // Application routes
+  const isMigrationRoute = path.startsWith('/migration') || path === '/dashboard' || path === '/entities' || path === '/management';
+  const isBackupRoute = path.startsWith('/backup');
+  const isTranslationRoute = path.startsWith('/translation');
+  const isFileMigrationRoute = path.startsWith('/file-migration');
+
+  if (isMigrationRoute || isBackupRoute || isTranslationRoute || isFileMigrationRoute) {
     let activeMenu = 'dashboard';
-    
+    let currentApp: 'migration' | 'backup' | 'translation' | 'file migration' = 'migration';
+
+    // Determine current app
+    if (isBackupRoute) currentApp = 'backup';
+    if (isTranslationRoute) currentApp = 'translation';
+    if (isFileMigrationRoute) currentApp = 'file migration';
+
     // Map routes to active menu
-    if (path === '/entities') activeMenu = 'entities';
+    if (path === '/entities' || path.startsWith('/migration')) activeMenu = 'entities';
     if (path === '/management') activeMenu = 'management';
-    if (isMigrationRoute) activeMenu = 'entities'; // Migration is part of entities
-    
+    if (path === '/backup/dashboard') activeMenu = 'backup dashboard';
+    if (path === '/backup/jobs') activeMenu = 'backup jobs';
+    if (path === '/backup/restore') activeMenu = 'restore';
+    if (path === '/backup/history') activeMenu = 'backup history';
+    if (path === '/translation/dashboard') activeMenu = 'translation dashboard';
+    if (path === '/translation/languages') activeMenu = 'language packs';
+    if (path === '/translation/memory') activeMenu = 'translation memory';
+    if (path === '/translation/progress') activeMenu = 'progress tracking';
+    if (path === '/file-migration/upload') activeMenu = 'file upload';
+    if (path === '/file-migration/analysis') activeMenu = 'file analysis';
+    if (path === '/file-migration/transform') activeMenu = 'file transform';
+    if (path === '/file-migration/storage') activeMenu = 'file storage';
+
     return {
-      currentView: 'application',
-      isSettingsMenuOpen: false,
+      selectedProject: null,
+      selectedEnvironment: null,
+      selectedSystem: null,
+      isSidebarOpen: true,
       activeMenu,
+      isSettingsMenuOpen: false,
+      currentView: 'application',
+      currentApp,
     };
   }
-  
+
   // Default fallback
   return {
-    currentView: 'application',
-    isSettingsMenuOpen: false,
+    selectedProject: null,
+    selectedEnvironment: null,
+    selectedSystem: null,
+    isSidebarOpen: true,
     activeMenu: 'dashboard',
+    isSettingsMenuOpen: false,
+    currentView: 'application',
+    currentApp: 'migration',
   };
 };
 
-const urlState = getInitialStateFromUrl();
+const initialState: AppState = loadInitialState();
 
-const initialState: AppState = {
-  selectedProject: null,
-  selectedEnvironment: null,
-  selectedSystem: null,
-  isSidebarOpen: true,
-  activeMenu: urlState.activeMenu || 'dashboard',
-  isSettingsMenuOpen: urlState.isSettingsMenuOpen || false,
-  currentView: urlState.currentView || 'application',
+// Helper to save state to localStorage
+const saveStateToLocalStorage = (state: AppState) => {
+  try {
+    localStorage.setItem('app_state', JSON.stringify(state));
+  } catch (error) {
+    console.error('Failed to save app state to localStorage:', error);
+  }
 };
 
 const appSlice = createSlice({
@@ -84,83 +135,163 @@ const appSlice = createSlice({
   reducers: {
     setSelectedProject: (state, action: PayloadAction<Project | null>) => {
       state.selectedProject = action.payload;
+      // Set current app based on project type
+      if (action.payload) {
+        const projectType = action.payload.project_type;
+        state.currentApp = projectType === 'filemigration' ? 'file migration' : (projectType || 'migration');
+      }
+      saveStateToLocalStorage(state);
     },
     setSelectedEnvironment: (state, action: PayloadAction<Environment | null>) => {
       state.selectedEnvironment = action.payload;
+      saveStateToLocalStorage(state);
     },
     setSelectedSystem: (state, action: PayloadAction<System | null>) => {
       state.selectedSystem = action.payload;
+      saveStateToLocalStorage(state);
     },
     toggleSidebar: (state) => {
       state.isSidebarOpen = !state.isSidebarOpen;
+      saveStateToLocalStorage(state);
     },
     setActiveMenu: (state, action: PayloadAction<string>) => {
       state.activeMenu = action.payload;
+      saveStateToLocalStorage(state);
     },
     openSettingsMenu: (state) => {
       state.isSettingsMenuOpen = true;
       state.currentView = 'settings';
       state.activeMenu = 'account';
+      state.currentApp = null;
+      saveStateToLocalStorage(state);
     },
     closeSettingsMenu: (state) => {
       state.isSettingsMenuOpen = false;
       state.currentView = 'application';
-      state.activeMenu = 'dashboard';
+      // Reset to appropriate dashboard based on project type
+      if (state.selectedProject?.project_type === 'backup') {
+        state.activeMenu = 'backup dashboard';
+        state.currentApp = 'backup';
+      } else if (state.selectedProject?.project_type === 'translation') {
+        state.activeMenu = 'translation dashboard';
+        state.currentApp = 'translation';
+      } else if (state.selectedProject?.project_type === 'file migration' || state.selectedProject?.project_type === 'filemigration') {
+        state.activeMenu = 'file upload';
+        state.currentApp = 'file migration';
+      } else {
+        state.activeMenu = 'dashboard';
+        state.currentApp = 'migration';
+      }
+      saveStateToLocalStorage(state);
     },
     switchToApplicationView: (state) => {
       state.currentView = 'application';
       state.isSettingsMenuOpen = false;
-      // Don't reset activeMenu - keep it based on current route
+      // Set appropriate app based on selected project
+      if (state.selectedProject?.project_type === 'backup') {
+        state.currentApp = 'backup';
+      } else if (state.selectedProject?.project_type === 'translation') {
+        state.currentApp = 'translation';
+      } else if (state.selectedProject?.project_type === 'file migration' || state.selectedProject?.project_type === 'filemigration') {
+        state.currentApp = 'file migration';
+      } else {
+        state.currentApp = 'migration';
+      }
+      saveStateToLocalStorage(state);
     },
     switchToSettingsView: (state) => {
       state.currentView = 'settings';
       state.isSettingsMenuOpen = true;
-      // Don't reset activeMenu - keep it based on current route
+      state.currentApp = null;
+      saveStateToLocalStorage(state);
     },
-    // Add action to sync state with current route
+    setCurrentApp: (state, action: PayloadAction<'migration' | 'backup' | 'translation' | 'file migration'>) => {
+      state.currentApp = action.payload;
+      saveStateToLocalStorage(state);
+    },
+    // Enhanced action to sync state with current route
     syncStateWithRoute: (state, action: PayloadAction<{ pathname: string }>) => {
       const { pathname } = action.payload;
-      
+
       const settingsRoutes = ['/account', '/users', '/projects'];
-      const applicationRoutes = ['/dashboard', '/entities', '/management'];
-      const isMigrationRoute = pathname.startsWith('/migration');
-      
+      const isMigrationRoute = pathname.startsWith('/migration') || pathname === '/dashboard' || pathname === '/entities' || pathname === '/management';
+      const isBackupRoute = pathname.startsWith('/backup');
+      const isTranslationRoute = pathname.startsWith('/translation');
+      const isFileMigrationRoute = pathname.startsWith('/file-migration');
+
       if (settingsRoutes.includes(pathname)) {
         state.currentView = 'settings';
         state.isSettingsMenuOpen = true;
-        
+        state.currentApp = null;
+
         // Set active menu based on route
         if (pathname === '/account') state.activeMenu = 'account';
         if (pathname === '/users') state.activeMenu = 'user';
         if (pathname === '/projects') state.activeMenu = 'project';
-      } else if (applicationRoutes.includes(pathname) || isMigrationRoute) {
+      } else if (isMigrationRoute || isBackupRoute || isTranslationRoute || isFileMigrationRoute) {
         state.currentView = 'application';
         state.isSettingsMenuOpen = false;
-        
+
+        // Set current app based on route
+        if (isBackupRoute) state.currentApp = 'backup';
+        else if (isTranslationRoute) state.currentApp = 'translation';
+        else if (isFileMigrationRoute) state.currentApp = 'file migration';
+        else state.currentApp = 'migration';
+
         // Set active menu based on route
         if (pathname === '/dashboard') state.activeMenu = 'dashboard';
-        if (pathname === '/entities') state.activeMenu = 'entities';
+        if (pathname === '/entities' || pathname.startsWith('/migration')) state.activeMenu = 'entities';
         if (pathname === '/management') state.activeMenu = 'management';
-        if (isMigrationRoute) state.activeMenu = 'entities'; // Migration is part of entities
+        if (pathname === '/backup/dashboard') state.activeMenu = 'backup dashboard';
+        if (pathname === '/backup/jobs') state.activeMenu = 'backup jobs';
+        if (pathname === '/backup/restore') state.activeMenu = 'restore';
+        if (pathname === '/backup/history') state.activeMenu = 'backup history';
+        if (pathname === '/translation/dashboard') state.activeMenu = 'translation dashboard';
+        if (pathname === '/translation/languages') state.activeMenu = 'language packs';
+        if (pathname === '/translation/memory') state.activeMenu = 'translation memory';
+        if (pathname === '/translation/progress') state.activeMenu = 'progress tracking';
+        if (pathname === '/file-migration/upload') state.activeMenu = 'file upload';
+        if (pathname === '/file-migration/analysis') state.activeMenu = 'file analysis';
+        if (pathname === '/file-migration/transform') state.activeMenu = 'file transform';
+        if (pathname === '/file-migration/storage') state.activeMenu = 'file storage';
       }
-      // Note: For other routes, we don't change the state to avoid overriding
-      // when navigating to routes that might not be in these lists
+
+      saveStateToLocalStorage(state);
     },
     clearSelectedProject: (state) => {
       state.selectedProject = null;
+      state.currentApp = 'migration';
+      saveStateToLocalStorage(state);
     },
     clearSelectedSystem: (state) => {
       state.selectedSystem = null;
+      saveStateToLocalStorage(state);
     },
-    // Add action to clear selected environment for consistency
     clearSelectedEnvironment: (state) => {
       state.selectedEnvironment = null;
+      saveStateToLocalStorage(state);
     },
-    // Optional: Add a clear all action for resetting selections
     clearAllSelections: (state) => {
       state.selectedProject = null;
       state.selectedSystem = null;
       state.selectedEnvironment = null;
+      state.currentApp = 'migration';
+      saveStateToLocalStorage(state);
+    },
+    // Add action to clear app state from localStorage
+    clearAppState: (state) => {
+      state.selectedProject = null;
+      state.selectedEnvironment = null;
+      state.selectedSystem = null;
+      state.activeMenu = 'dashboard';
+      state.isSettingsMenuOpen = false;
+      state.currentView = 'application';
+      state.currentApp = 'migration';
+      try {
+        localStorage.removeItem('app_state');
+      } catch (error) {
+        console.error('Failed to clear app state from localStorage:', error);
+      }
     },
   },
 });
@@ -175,10 +306,13 @@ export const {
   closeSettingsMenu,
   switchToApplicationView,
   switchToSettingsView,
+  setCurrentApp,
   syncStateWithRoute,
   clearSelectedProject,
   clearSelectedSystem,
   clearSelectedEnvironment,
   clearAllSelections,
+  clearAppState,
 } = appSlice.actions;
 export default appSlice.reducer;
+

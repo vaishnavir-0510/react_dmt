@@ -1,5 +1,5 @@
 // components/migration/tabs/MetadataTab.tsx
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Typography,
   Box,
@@ -44,17 +44,41 @@ import {
   Visibility as ViewIcon,
   Code as CodeIcon,
   Edit as EditIcon,
+  Check as CheckIcon,
+  Close as CloseIcon,
+  Info as InfoIcon,
+  Person as PersonIcon,
+  SmartToy as SmartToyIcon,
+  Public as PublicIcon,
+  BusinessCenter as BusinessCenterIcon,
+  LockOutlined as LockOutlinedIcon,
+  PersonOutline as PersonOutlineIcon,
+  VerifiedUser as VerifiedUserIcon,
+  MedicalServices as MedicalServicesIcon,
+  WarningAmber as WarningAmberIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  FilterCenterFocus as FilterCenterFocusIcon,
+  Email as EmailIcon,
+  Fingerprint as FingerprintIcon,
+  Business as BusinessIcon,
+  NoEncryption as NoEncryptionIcon,
+  HelpOutline as HelpOutlineIcon,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../store';
-import { 
-  useGetMappedTargetObjectQuery, 
-  useGetObjectMetadataQuery,
-  useUpdateFieldMetadataMutation // UPDATE: Import the mutation
+import {
+  useGetMappedTargetObjectQuery,
+  useGetObjectMetadataPaginatedQuery,
+  useUpdateFieldMetadataMutation, // UPDATE: Import the mutation
+  useGetOntologyMappingsQuery,
+  useUpdateOntologyMappingMutation,
 } from '../../../services/metadataApi';
 
 import type { MetadataField } from '../../../types';
 import { MetadataEditorSlideIn } from '../../metadata/MetadataEditorSlidein';
+import { ToggleButton } from '../ToggleButton';
+import { useActivity } from '../ActivityProvider';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -79,11 +103,13 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index, ...other })
 export const MetadataTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
   const { selectedProject, selectedEnvironment } = useSelector((state: RootState) => state.app);
+  const { getCompletionStatus, getReadOnlyFlag, getActivityStatus } = useActivity();
+  const isReadOnly = getReadOnlyFlag('Metadata') || getCompletionStatus('Mapping');
   
   const [activeTab, setActiveTab] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [filterField, setFilterField] = useState('all');
   const [selectedField, setSelectedField] = useState<any>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
@@ -92,9 +118,14 @@ export const MetadataTab: React.FC = () => {
   const [editingField, setEditingField] = useState<MetadataField | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [ontologyStatuses, setOntologyStatuses] = useState<Record<string, 'pending' | 'accepted' | 'rejected' | 'user_override'>>({});
+  const [editingOntology, setEditingOntology] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+  const [bulkAccepted, setBulkAccepted] = useState(false);
 
   // UPDATE: Add the update mutation
   const [updateFieldMetadata, { isLoading: isUpdating }] = useUpdateFieldMetadataMutation();
+  const [updateOntologyMapping] = useUpdateOntologyMappingMutation();
 
   // Get mapped target object
   const { 
@@ -111,23 +142,74 @@ export const MetadataTab: React.FC = () => {
 
   // Get source metadata with refetch capability
   const {
-    data: sourceMetadata = [],
+    data: sourceMetadataResponse,
     isLoading: isLoadingSourceMetadata,
     error: sourceMetadataError,
     refetch: refetchSourceMetadata, // UPDATE: Get refetch function
-  } = useGetObjectMetadataQuery(selectedObject?.object_id || '', {
+  } = useGetObjectMetadataPaginatedQuery({
+    objectId: selectedObject?.object_id || '',
+    page: page + 1,
+    page_size: rowsPerPage
+  }, {
     skip: !selectedObject?.object_id,
   });
 
   // Get target metadata with refetch capability
   const {
-    data: targetMetadata = [],
+    data: targetMetadataResponse,
     isLoading: isLoadingTargetMetadata,
     error: targetMetadataError,
     refetch: refetchTargetMetadata, // UPDATE: Get refetch function
-  } = useGetObjectMetadataQuery(mappedObject?.id || '', {
+  } = useGetObjectMetadataPaginatedQuery({
+    objectId: mappedObject?.id || '',
+    page: page + 1,
+    page_size: rowsPerPage
+  }, {
     skip: !mappedObject?.id,
   });
+
+  // Get ontology mappings
+  const {
+    data: ontologyMappings,
+    isLoading: isLoadingOntology,
+    error: ontologyError,
+  } = useGetOntologyMappingsQuery(selectedObject?.object_id || '', {
+    skip: !selectedObject?.object_id,
+  });
+
+  // Check for unaccepted high-confidence mappings
+  const hasUnacceptedHighConfidence = React.useMemo(() => {
+    return ontologyMappings?.some(m => m.confidence_score >= 0.95 && ontologyStatuses[m.original_field_name] !== 'accepted') || false;
+  }, [ontologyMappings, ontologyStatuses]);
+
+  const sourceMetadata = sourceMetadataResponse?.records || [];
+  const targetMetadata = targetMetadataResponse?.records || [];
+
+  // Refetch data when object or environment changes
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      refetchSourceMetadata();
+    }
+  }, [selectedObject?.object_id, refetchSourceMetadata]);
+
+  // Refresh activity status when tab is accessed
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      getActivityStatus(selectedObject.object_id);
+    }
+  }, [selectedObject?.object_id, getActivityStatus]);
+
+  // Reset bulk accepted when object changes
+  useEffect(() => {
+    setBulkAccepted(false);
+  }, [selectedObject?.object_id]);
+
+  useEffect(() => {
+    if (selectedProject?.id && selectedEnvironment?.id && selectedObject?.object_id) {
+      // Refetch mapped object and target metadata when environment changes
+      // The queries will automatically refetch due to the skip conditions
+    }
+  }, [selectedProject?.id, selectedEnvironment?.id, selectedObject?.object_id]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -197,32 +279,73 @@ export const MetadataTab: React.FC = () => {
     setRawDataDialogOpen(true);
   };
 
-  // Filter and search logic
+  const handleAcceptOntology = async (fieldName: string, mapping: any) => {
+    try {
+      await updateOntologyMapping({
+        mappingId: mapping.id,
+        updates: { ontology_term_status: 'true', ontological_term_description_status: 'true' }
+      }).unwrap();
+      setOntologyStatuses(prev => ({ ...prev, [fieldName]: 'accepted' }));
+    } catch (error) {
+      console.error('Failed to accept ontology:', error);
+    }
+  };
+
+  const handleRejectOntology = (fieldName: string) => {
+    setOntologyStatuses(prev => ({ ...prev, [fieldName]: 'rejected' }));
+    setEditingOntology(fieldName);
+    const mapping = ontologyMappings?.find(m => m.original_field_name === fieldName);
+    setEditingValue(mapping?.ontology_term || '');
+  };
+
+  const handleSaveOntologyEdit = async (fieldName: string, mapping: any) => {
+    try {
+      await updateOntologyMapping({
+        mappingId: mapping.id,
+        updates: { ontology_term: editingValue, ontology_term_status: 'true', ontological_term_description_status: 'true' }
+      }).unwrap();
+      setOntologyStatuses(prev => ({ ...prev, [fieldName]: 'user_override' }));
+      setEditingOntology(null);
+      setEditingValue('');
+    } catch (error) {
+      console.error('Failed to update ontology:', error);
+    }
+  };
+
+  const handleBulkAcceptHighConfidence = async () => {
+    const highConfidenceMappings = ontologyMappings?.filter(m => m.confidence_score >= 0.95 && ontologyStatuses[m.original_field_name] !== 'accepted') || [];
+    for (const mapping of highConfidenceMappings) {
+      try {
+        await updateOntologyMapping({
+          mappingId: mapping.id,
+          updates: { ontology_term_status: 'true', ontological_term_description_status: 'true' }
+        }).unwrap();
+        setOntologyStatuses(prev => ({ ...prev, [mapping.original_field_name]: 'accepted' }));
+      } catch (error) {
+        console.error('Failed to accept high confidence ontology:', error);
+      }
+    }
+    setBulkAccepted(true);
+  };
+
+  // Filter logic (client-side on current page data)
   const filteredMetadata = useMemo(() => {
     const metadata = activeTab === 0 ? sourceMetadata : targetMetadata;
-    
-    return metadata.filter((field) => {
-      const matchesSearch = searchTerm === '' || 
-        Object.values(field).some(value => 
-          value && value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-        );
 
-      const matchesFilter = filterField === 'all' || 
+    return metadata.filter((field: any) => {
+      const matchesFilter = filterField === 'all' ||
         (filterField === 'primary_key' && field.is_pk === 'true') ||
         (filterField === 'foreign_key' && field.is_fk === 'true') ||
         (filterField === 'required' && field.is_required === 'true') ||
         (filterField === 'unique' && field.is_unique === 'true') ||
         (filterField === 'for_migration' && field.for_migrate === 'true');
 
-      return matchesSearch && matchesFilter;
+      return matchesFilter;
     });
-  }, [sourceMetadata, targetMetadata, activeTab, searchTerm, filterField]);
+  }, [sourceMetadata, targetMetadata, activeTab, filterField]);
 
-  // Pagination
-  const paginatedMetadata = useMemo(() => {
-    const startIndex = page * rowsPerPage;
-    return filteredMetadata.slice(startIndex, startIndex + rowsPerPage);
-  }, [filteredMetadata, page, rowsPerPage]);
+  // Since pagination is server-side, paginatedMetadata is just filteredMetadata
+  const paginatedMetadata = filteredMetadata;
 
   // Highlight search term in text
   const highlightText = useCallback((text: string, search: string) => {
@@ -246,6 +369,7 @@ export const MetadataTab: React.FC = () => {
 
   // Get current metadata for raw data view
   const currentMetadata = activeTab === 0 ? sourceMetadata : targetMetadata;
+  const currentMetadataResponse = activeTab === 0 ? sourceMetadataResponse : targetMetadataResponse;
 
   // Enhanced Metadata Table Component
   const MetadataTable: React.FC<{
@@ -277,6 +401,159 @@ export const MetadataTab: React.FC = () => {
     onEditField,
     selectedRowId,
   }) => {
+    // Configs for special field rendering
+    const securityClassConfig: Record<string, { color: string; icon: (color: string) => React.ReactNode; tooltip: string }> = {
+      "Public": {
+        color: '#4caf50',
+        icon: (color) => <PublicIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Public - Openly accessible data",
+      },
+      "Internal Business": {
+        color: '#2196f3',
+        icon: (color) => <BusinessCenterIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Internal Business - Company internal use only",
+      },
+      "Confidential Business": {
+        color: '#ff9800',
+        icon: (color) => <LockOutlinedIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Confidential Business - Restricted company data",
+      },
+      "PII": {
+        color: '#9c27b0',
+        icon: (color) => <PersonOutlineIcon fontSize="small" sx={{ color }} />,
+        tooltip: "PII - Personally Identifiable Information",
+      },
+      "Sensitive PII": {
+        color: '#f44336',
+        icon: (color) => <VerifiedUserIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Sensitive PII - Highly sensitive personal data",
+      },
+      "PHI": {
+        color: '#ff5722',
+        icon: (color) => <MedicalServicesIcon fontSize="small" sx={{ color }} />,
+        tooltip: "PHI - Protected Health Information",
+      },
+    };
+
+    const maskConfig: Record<string, { color: string; icon: (color: string) => React.ReactNode; tooltip: string }> = {
+      "None": {
+        color: '#4caf50',
+        icon: (color) => <VisibilityIcon fontSize="small" sx={{ color }} />,
+        tooltip: "None - No masking applied",
+      },
+      "Full": {
+        color: '#f44336',
+        icon: (color) => <VisibilityOffIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Full - Complete data masking",
+      },
+      "Mask Last 4": {
+        color: '#2196f3',
+        icon: (color) => <FilterCenterFocusIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Mask Last 4 - Hide last 4 characters",
+      },
+      "Mask First 4": {
+        color: '#2196f3',
+        icon: (color) => <FilterCenterFocusIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Mask First 4 - Hide first 4 characters",
+      },
+      "Redact Email": {
+        color: '#9c27b0',
+        icon: (color) => <EmailIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Redact Email - Hide email content",
+      },
+      "Hash (SHA-256)": {
+        color: '#ff9800',
+        icon: (color) => <FingerprintIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Hash (SHA-256) - Cryptographic hashing",
+      },
+    };
+
+    const permissionConfig: Record<string, { color: string; icon: (color: string) => React.ReactNode; tooltip: string }> = {
+      "Public": {
+        color: '#4caf50',
+        icon: (color) => <PublicIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Public - Accessible to everyone",
+      },
+      "Internal": {
+        color: '#2196f3',
+        icon: (color) => <BusinessIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Internal - Company employees only",
+      },
+      "Confidential": {
+        color: '#ff9800',
+        icon: (color) => <LockOutlinedIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Confidential - Restricted access required",
+      },
+      "Restricted": {
+        color: '#f44336',
+        icon: (color) => <NoEncryptionIcon fontSize="small" sx={{ color }} />,
+        tooltip: "Restricted - Highly controlled access",
+      },
+    };
+
+    const renderSpecialCell = (key: string, value: string) => {
+      if (!value || value === 'No data' || value === 'null') {
+        return (
+          <Tooltip title={`No ${key.replace('_', ' ')} assigned`}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <HelpOutlineIcon sx={{ fontSize: 16, color: 'grey.500' }} />
+              <Typography variant="body2" color="text.secondary">
+                {key === 'security_class' ? 'Unclassified' : key === 'mask' ? 'No Mask' : 'Not Set'}
+              </Typography>
+            </Box>
+          </Tooltip>
+        );
+      }
+
+      const classes = value.split(',').map(e => e.trim());
+      const configMap = key === 'security_class' ? securityClassConfig : key === 'mask' ? maskConfig : permissionConfig;
+
+      return (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {classes.map((className, index) => {
+            const config = configMap[className] || {
+              color: 'grey.500',
+              icon: (color: string) => <WarningAmberIcon fontSize="small" sx={{ color }} />,
+              tooltip: `Unknown ${key}: ${className}`,
+            };
+
+            return (
+              <Tooltip key={index} title={config.tooltip}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {config.icon(config.color)}
+                  <Typography variant="body2" sx={{ color: config.color, fontWeight: 500 }}>
+                    {className}
+                  </Typography>
+                </Box>
+              </Tooltip>
+            );
+          })}
+        </Box>
+      );
+    };
+    // Get all unique keys from metadata for dynamic columns
+    const allKeys = React.useMemo(() => {
+      if (metadata.length === 0) return [];
+      const keys = new Set<string>();
+      metadata.forEach((field: any) => Object.keys(field).forEach(key => keys.add(key)));
+      return Array.from(keys).sort();
+    }, [metadata]);
+
+    // Define columns
+    const columns = React.useMemo(() => [
+      { key: 'ai_suggested', label: 'AI Agent Suggested Field Name', minWidth: '200px' },
+      { key: 'actions', label: 'Actions', width: '120px' },
+      { key: 'name', label: 'Field Name', minWidth: '200px' },
+      { key: 'datatype', label: 'Data Type', width: '120px' },
+      { key: 'max_length', label: 'Max Length', width: '80px' },
+      ...allKeys.filter(key => !['name', 'datatype', 'max_length'].includes(key)).map(key => ({ key, label: key, minWidth: '150px' }))
+    ], [allKeys]);
+
+    // Filter columns based on search term
+    const displayedColumns = React.useMemo(() =>
+      columns.filter(col => searchTerm === '' || col.label.toLowerCase().includes(searchTerm.toLowerCase())),
+      [columns, searchTerm]
+    );
     if (isLoading) {
       return (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
@@ -308,133 +585,194 @@ export const MetadataTab: React.FC = () => {
 
     return (
       <Paper elevation={1}>
-        <TableContainer sx={{ maxHeight: '60vh' }}>
-          <Table stickyHeader size="small">
+        <TableContainer sx={{ maxHeight: '60vh', overflowX: 'auto' }}>
+          <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>ID</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', minWidth: '200px' }}>Field Name</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', minWidth: '150px' }}>Label</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '120px' }}>Data Type</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>Length</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '120px' }}>Properties</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', minWidth: '150px' }}>Sample Value</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '100px' }}>Data Quality</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '120px' }}>Actions</TableCell>
+                {displayedColumns.map(col => (
+                  <TableCell key={col.key} sx={{ fontWeight: 'bold', ...(col.width ? { width: col.width } : { minWidth: col.minWidth }) }}>
+                    {col.key === 'ai_suggested' ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>{highlightText(col.label, searchTerm)}</span>
+                        {!bulkAccepted && hasUnacceptedHighConfidence && (
+                          <Tooltip title="Accept All High-Confidence Suggestions">
+                            <IconButton
+                              size="small"
+                              onClick={handleBulkAcceptHighConfidence}
+                              sx={{ ml: 1, color: '#4caf50' }}
+                            >
+                              <SmartToyIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    ) : (
+                      highlightText(col.label, searchTerm)
+                    )}
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {metadata.map((field) => (
-                <TableRow 
-                  key={field.id}
+              {metadata.map((field: any, index: number) => (
+                <TableRow
+                  key={field.id || index}
                   onClick={() => {
-                    setSelectedRowId(field.id);
-                    setEditingField(field);
-                    setEditorOpen(true);
+                    if (!isReadOnly) {
+                      setSelectedRowId(field.id);
+                      setEditingField(field);
+                      setEditorOpen(true);
+                    }
                   }}
-                  sx={{ 
-                    cursor: 'pointer',
+                  sx={{
+                    cursor: isReadOnly ? 'default' : 'pointer',
                     backgroundColor: selectedRowId === field.id ? 'action.selected' : 'inherit',
-                    '&:hover': { 
-                      backgroundColor: selectedRowId === field.id ? 'action.selected' : 'action.hover' 
+                    '&:hover': {
+                      backgroundColor: selectedRowId === field.id ? 'action.selected' : (isReadOnly ? 'inherit' : 'action.hover')
                     },
                     '&:last-child td, &:last-child th': { border: 0 }
                   }}
                 >
-                  <TableCell>
-                    {highlightText(field.id.toString(), searchTerm)}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 'medium' }}>
-                    {highlightText(field.name, searchTerm)}
-                  </TableCell>
-                  <TableCell>
-                    {highlightText(field.label || '-', searchTerm)}
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={field.datatype} 
-                      size="small" 
-                      variant="outlined"
-                      color={
-                        field.datatype === 'string' ? 'primary' :
-                        field.datatype === 'number' ? 'secondary' :
-                        field.datatype === 'boolean' ? 'success' : 'default'
+                  {displayedColumns.map(col => {
+                    if (col.key === 'actions') {
+                      return (
+                        <TableCell key={col.key}>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <Tooltip title="View all field details">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent row click
+                                  onViewDetails(field);
+                                }}
+                                color="primary"
+                              >
+                                <ViewIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Edit field metadata">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent row click
+                                  onEditField(field);
+                                }}
+                                color="secondary"
+                                disabled={isReadOnly}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                      );
+                    } else if (col.key === 'name') {
+                      return (
+                        <TableCell key={col.key} sx={{ fontWeight: 'medium' }}>
+                          {field.name}
+                        </TableCell>
+                      );
+                    } else if (col.key === 'datatype') {
+                      return (
+                        <TableCell key={col.key}>
+                          <Chip
+                            label={field.datatype}
+                            size="small"
+                            variant="outlined"
+                            color={
+                              field.datatype === 'string' ? 'primary' :
+                              field.datatype === 'number' ? 'secondary' :
+                              field.datatype === 'boolean' ? 'success' : 'default'
+                            }
+                          />
+                        </TableCell>
+                      );
+                    } else if (col.key === 'max_length') {
+                      return (
+                        <TableCell key={col.key}>
+                          {field.max_length || '-'}
+                        </TableCell>
+                      );
+                    } else if (col.key === 'ai_suggested') {
+                      const mapping = ontologyMappings?.find(m => m.original_field_name === field.name);
+                      const status = ontologyStatuses[field.name] || (mapping?.ontology_term_status === 'true' ? 'accepted' : 'pending');
+                      if (!mapping) {
+                        return <TableCell key={col.key}>-</TableCell>;
                       }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {field.max_length || field.length || '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      {field.is_pk === 'true' && (
-                        <Chip label="PK" size="small" color="primary" variant="filled" />
-                      )}
-                      {field.is_fk === 'true' && (
-                        <Chip label="FK" size="small" color="secondary" variant="filled" />
-                      )}
-                      {field.is_required === 'true' && (
-                        <Chip label="Required" size="small" color="error" variant="outlined" />
-                      )}
-                      {field.is_unique === 'true' && (
-                        <Chip label="Unique" size="small" color="warning" variant="outlined" />
-                      )}
-                      {field.for_migrate === 'true' && (
-                        <Chip label="For Mig" size="small" color="success" variant="outlined" />
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell sx={{ 
-                    maxWidth: 200,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {highlightText(field.sample_value || '-', searchTerm)}
-                  </TableCell>
-                  <TableCell>
-                    {field.data_quality && field.data_quality !== '0' ? (
-                      <Chip 
-                        label={`${parseFloat(field.data_quality).toFixed(1)}%`}
-                        size="small"
-                        color={
-                          parseFloat(field.data_quality) > 90 ? 'success' :
-                          parseFloat(field.data_quality) > 70 ? 'warning' : 'error'
-                        }
-                        variant="filled"
-                      />
-                    ) : (
-                      '-'
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <Tooltip title="View all field details">
-                        <IconButton 
-                          size="small" 
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent row click
-                            onViewDetails(field);
-                          }}
-                          color="primary"
-                        >
-                          <ViewIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit field metadata">
-                        <IconButton 
-                          size="small" 
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent row click
-                            onEditField(field);
-                          }}
-                          color="secondary"
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
+                      if (editingOntology === field.name) {
+                        return (
+                          <TableCell key={col.key} onClick={(e) => e.stopPropagation()}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <TextField
+                                size="small"
+                                value={editingValue}
+                                onChange={(e) => setEditingValue(e.target.value)}
+                                sx={{ minWidth: 150 }}
+                              />
+                              <IconButton size="small" onClick={() => handleSaveOntologyEdit(field.name, mapping)} color="primary">
+                                <CheckIcon />
+                              </IconButton>
+                              <IconButton size="small" onClick={() => { setEditingOntology(null); setEditingValue(''); }} color="secondary">
+                                <CloseIcon />
+                              </IconButton>
+                            </Box>
+                          </TableCell>
+                        );
+                      }
+                      return (
+                        <TableCell key={col.key} onClick={(e) => e.stopPropagation()}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {status === 'pending' && (
+                              <Box sx={{ backgroundColor: '#fff9c4', padding: '4px 8px', borderRadius: 1, border: '1px dashed #fbc02d' }}>
+                                <Typography variant="body2" sx={{ textDecoration: 'underline', textDecorationStyle: 'dashed' }}>
+                                  {mapping.ontology_term}
+                                </Typography>
+                              </Box>
+                            )}
+                            {status === 'accepted' && (
+                              <Typography variant="body2">{mapping.ontology_term}</Typography>
+                            )}
+                            {status === 'user_override' && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body2">{mapping.ontology_term}</Typography>
+                                <PersonIcon fontSize="small" />
+                              </Box>
+                            )}
+                            <Tooltip title={mapping.ontological_term_description}>
+                              <InfoIcon fontSize="small" sx={{ cursor: 'pointer' }} />
+                            </Tooltip>
+                            {status === 'pending' && (
+                              <>
+                                <IconButton size="small" onClick={() => handleAcceptOntology(field.name, mapping)} color="success">
+                                  <CheckIcon />
+                                </IconButton>
+                                <IconButton size="small" onClick={() => handleRejectOntology(field.name)} color="error">
+                                  <CloseIcon />
+                                </IconButton>
+                              </>
+                            )}
+                            {(status === 'accepted' || status === 'user_override') && (
+                              <IconButton size="small" onClick={() => { setEditingOntology(field.name); setEditingValue(mapping.ontology_term); }} color="primary">
+                                <EditIcon />
+                              </IconButton>
+                            )}
+                          </Box>
+                        </TableCell>
+                      );
+                    } else {
+                      const isSpecialField = ['security_class', 'mask', 'permission'].includes(col.key);
+                      return (
+                        <TableCell key={col.key} sx={{
+                          maxWidth: 200,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {isSpecialField ? renderSpecialCell(col.key, field[col.key]?.toString() || '') : (field[col.key]?.toString() || '-')}
+                        </TableCell>
+                      );
+                    }
+                  })}
                 </TableRow>
               ))}
             </TableBody>
@@ -443,7 +781,7 @@ export const MetadataTab: React.FC = () => {
 
         {/* Pagination */}
         <TablePagination
-          rowsPerPageOptions={[25, 50, 100, 200]}
+          rowsPerPageOptions={[5]}
           component="div"
           count={totalCount}
           rowsPerPage={rowsPerPage}
@@ -489,16 +827,22 @@ export const MetadataTab: React.FC = () => {
             View and manage metadata for {selectedObject?.object_name}
           </Typography>
         </Box>
-        
-        <Tooltip title="View raw API data">
-          <IconButton 
-            onClick={handleViewRawData}
-            color="primary"
-            sx={{ border: 1, borderColor: 'primary.main' }}
-          >
-            <CodeIcon />
-          </IconButton>
-        </Tooltip>
+
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ToggleButton
+            activity="Metadata"
+            disabled={getCompletionStatus('Mapping')}
+          />
+          <Tooltip title="View raw API data">
+            <IconButton
+              onClick={handleViewRawData}
+              color="primary"
+              sx={{ border: 1, borderColor: 'primary.main' }}
+            >
+              <CodeIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
       {/* System Information Cards */}
@@ -519,7 +863,7 @@ export const MetadataTab: React.FC = () => {
                 <strong>Type:</strong> Source
               </Typography>
               <Typography variant="body2">
-                <strong>Fields:</strong> {sourceMetadata.length}
+                <strong>Fields:</strong> {sourceMetadataResponse?.total_records || 0}
               </Typography>
               {isLoadingSourceMetadata && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
@@ -558,7 +902,7 @@ export const MetadataTab: React.FC = () => {
                     <strong>Type:</strong> Target
                   </Typography>
                   <Typography variant="body2">
-                    <strong>Fields:</strong> {targetMetadata.length}
+                    <strong>Fields:</strong> {targetMetadataResponse?.total_records || 0}
                   </Typography>
                   {isLoadingTargetMetadata && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
@@ -609,7 +953,7 @@ export const MetadataTab: React.FC = () => {
       {/* Search and Filter Controls */}
       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <TextField
-          placeholder="Search across all field properties..."
+          placeholder="Search column headers..."
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -625,23 +969,25 @@ export const MetadataTab: React.FC = () => {
           sx={{ minWidth: 300, flexGrow: 1 }}
           size="small"
         />
-        
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Filter Fields</InputLabel>
-          <Select
-            value={filterField}
-            label="Filter Fields"
-            onChange={(e) => setFilterField(e.target.value)}
-            startAdornment={<FilterIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />}
-          >
-            <MenuItem value="all">All Fields</MenuItem>
-            <MenuItem value="primary_key">Primary Keys</MenuItem>
-            <MenuItem value="foreign_key">Foreign Keys</MenuItem>
-            <MenuItem value="required">Required Fields</MenuItem>
-            <MenuItem value="unique">Unique Fields</MenuItem>
-            <MenuItem value="for_migration">For Migration</MenuItem>
-          </Select>
-        </FormControl>
+
+        {activeTab === 1 && (
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Filter Fields</InputLabel>
+            <Select
+              value={filterField}
+              label="Filter Fields"
+              onChange={(e) => setFilterField(e.target.value)}
+              startAdornment={<FilterIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />}
+            >
+              <MenuItem value="all">All Fields</MenuItem>
+              <MenuItem value="primary_key">Primary Keys</MenuItem>
+              <MenuItem value="foreign_key">Foreign Keys</MenuItem>
+              <MenuItem value="required">Required Fields</MenuItem>
+              <MenuItem value="unique">Unique Fields</MenuItem>
+              <MenuItem value="for_migration">For Migration</MenuItem>
+            </Select>
+          </FormControl>
+        )}
       </Box>
 
       {/* Tab Panels */}
@@ -652,7 +998,7 @@ export const MetadataTab: React.FC = () => {
           error={sourceMetadataError}
           searchTerm={searchTerm}
           highlightText={highlightText}
-          totalCount={filteredMetadata.length}
+          totalCount={sourceMetadataResponse?.total_records || 0}
           page={page}
           rowsPerPage={rowsPerPage}
           onPageChange={handleChangePage}
@@ -675,7 +1021,7 @@ export const MetadataTab: React.FC = () => {
             error={targetMetadataError}
             searchTerm={searchTerm}
             highlightText={highlightText}
-            totalCount={filteredMetadata.length}
+            totalCount={targetMetadataResponse?.total_records || 0}
             page={page}
             rowsPerPage={rowsPerPage}
             onPageChange={handleChangePage}
@@ -749,7 +1095,7 @@ export const MetadataTab: React.FC = () => {
         <DialogTitle>
           Raw API Data - {activeTab === 0 ? 'Source' : 'Target'} Metadata
           <Typography variant="caption" display="block" color="text.secondary">
-            Total Fields: {currentMetadata.length}
+            Total Fields: {currentMetadataResponse?.total_records || 0}
           </Typography>
         </DialogTitle>
         <DialogContent>
@@ -759,15 +1105,15 @@ export const MetadataTab: React.FC = () => {
                 <Typography variant="h6">Complete API Response</Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <pre style={{ 
-                  backgroundColor: '#f5f5f5', 
-                  padding: '16px', 
+                <pre style={{
+                  backgroundColor: '#f5f5f5',
+                  padding: '16px',
                   borderRadius: '4px',
                   overflow: 'auto',
                   maxHeight: '400px',
                   fontSize: '12px'
                 }}>
-                  {JSON.stringify(currentMetadata, null, 2)}
+                  {JSON.stringify(currentMetadataResponse?.records || [], null, 2)}
                 </pre>
               </AccordionDetails>
             </Accordion>

@@ -42,11 +42,13 @@ import {
   CheckCircle as CheckCircleIcon,
   Place as PlaceIcon,
   Source as SourceIcon,
+  SmartToy as SmartToyIcon,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import type { MetadataField } from '../../types';
 import { metadataConfig, getSectionsForTab } from './metadataConfig';
+import { useGetOntologyMappingsQuery, useUpdateOntologyMappingMutation } from '../../services/metadataApi';
 
 interface MetadataEditorSlideInProps {
   open: boolean;
@@ -127,7 +129,15 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
   const [showSaveSuccess, setShowSaveSuccess] = useState<boolean>(false);
   const [currentDataType, setCurrentDataType] = useState<string>('string');
   const [pendingDataTypeChange, setPendingDataTypeChange] = useState<string | null>(null);
+  const [rejectionMode, setRejectionMode] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
   const { selectedProject } = useSelector((state: RootState) => state.app);
+
+  // Ontology hooks
+  const { data: ontologyMappings } = useGetOntologyMappingsQuery(field?.object_id || '', {
+    skip: !field?.object_id,
+  });
+  const [updateOntologyMapping] = useUpdateOntologyMappingMutation();
 
   // Initialize form data when field changes or modal opens
   useEffect(() => {
@@ -362,11 +372,48 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
       ...field,
       ...formData,
     }, modifiedFields);
-    
+
     setShowSaveSuccess(true);
     setOriginalData(formData);
     setModifiedFields({});
     setEditingField(null);
+  };
+
+  const handleAcceptOntology = async (mapping: any) => {
+    try {
+      await updateOntologyMapping({
+        mappingId: mapping.id,
+        updates: { ontology_term_status: 'true', ontological_term_description_status: 'true' }
+      }).unwrap();
+    } catch (error) {
+      console.error('Failed to accept ontology:', error);
+    }
+  };
+
+  const handleRejectOntology = (mapping: any) => {
+    setRejectionMode(true);
+  };
+
+  const handleFeedbackAccept = async (mapping: any) => {
+    try {
+      await updateOntologyMapping({
+        mappingId: mapping.id,
+        updates: {
+          ontology_term_status: 'false',
+          ontological_term_description_status: 'false',
+          ontology_term_user_feedback: feedbackText
+        }
+      }).unwrap();
+      setRejectionMode(false);
+      setFeedbackText('');
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+    }
+  };
+
+  const handleFeedbackCancel = () => {
+    setRejectionMode(false);
+    setFeedbackText('');
   };
 
   const getFieldConfigsBySection = (section: string, tab: 'General' | 'Analytical') => {
@@ -695,6 +742,8 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
 
   if (!field) return null;
 
+  const ontologyMapping = ontologyMappings?.find(m => m.original_field_name === field.name);
+
   const generalSections = getSectionsForTab('General', currentDataType);
   const analyticalSections = getSectionsForTab('Analytical', currentDataType);
   const hasModifications = Object.keys(modifiedFields).length > 0;
@@ -739,31 +788,100 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
             </IconButton>
           </Box>
 
-          {/* Ontology Information */}
-          <Box sx={{ p: 2, bgcolor: '#f9f9f9', borderBottom: '1px solid #e0e0e0' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <InfoIcon sx={{ color: '#1976d2', fontSize: 20 }} />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                Ontology Term - {field.label || field.name}
-              </Typography>
-              <Chip 
-                label="AI Suggestion Accepted For Description"
-                size="small"
-                sx={{ 
-                  bgcolor: '#4caf50',
-                  color: 'white',
-                  fontWeight: 500,
-                  ml: 'auto'
-                }}
-              />
+          {/* AI Ontology Suggestion */}
+          {ontologyMapping && (
+            <Box sx={{ p: 2, bgcolor: '#f9f9f9', borderBottom: '1px solid #e0e0e0' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <SmartToyIcon sx={{ color: '#1976d2', fontSize: 20 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    AI Ontology Suggestion
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {ontologyMapping.ontology_term_status === 'true' && (
+                    <Chip
+                      label="AI description accepted successfully"
+                      size="small"
+                      sx={{
+                        bgcolor: '#4caf50',
+                        color: 'white',
+                        fontWeight: 500
+                      }}
+                    />
+                  )}
+                  {!rejectionMode && ontologyMapping.ontology_term_status !== 'true' && (
+                    <>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => handleAcceptOntology(ontologyMapping)}
+                        sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleRejectOntology(ontologyMapping)}
+                        sx={{ color: '#f44336', borderColor: '#f44336' }}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  {rejectionMode && (
+                    <>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => handleFeedbackAccept(ontologyMapping)}
+                        disabled={!feedbackText.trim()}
+                        sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
+                      >
+                        Submit Feedback
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={handleFeedbackCancel}
+                        sx={{ color: '#f44336', borderColor: '#f44336' }}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  )}
+                </Box>
+              </Box>
+              {!rejectionMode ? (
+                <>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Ontology Term:</strong> {ontologyMapping.ontology_term}
+                  </Typography>
+                  <Box sx={{ bgcolor: '#fff9c4', p: 1, borderRadius: 1, mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Ontology Description:</strong> {ontologyMapping.ontological_term_description}
+                    </Typography>
+                  </Box>
+                </>
+              ) : (
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Please provide feedback for rejecting this ontology suggestion:</strong>
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    placeholder="Explain why you rejected this suggestion..."
+                    sx={{ mb: 1 }}
+                  />
+                </Box>
+              )}
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-              <InfoIcon sx={{ color: '#1976d2', fontSize: 20 }} />
-              <Typography variant="body2" color="text.secondary">
-                <strong>Ontology Description-</strong> {field.description || 'Name of the company the lead is associated with.'}
-              </Typography>
-            </Box>
-          </Box>
+          )}
 
           <Typography variant="body2" sx={{ p: 2, bgcolor: 'white', borderBottom: '1px solid #e0e0e0' }}>
             Use this window to view and modify the metadata associated with the selected data column.

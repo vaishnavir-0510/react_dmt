@@ -73,20 +73,22 @@ export const EstimationCalculator: React.FC = () => {
   };
 
   // Initialize slider states when data loads
-  useEffect(() => {
-    if (estimatorData.length > 0) {
-      const initialStates: Record<string, SliderState> = {};
-      estimatorData.forEach((activity: ProjectEstimatorActivity) => {
-        initialStates[activity.activity] = {
-          value: activity.dev_set_value,
-          isModified: false,
-          isLoading: false,
-          originalValue: activity.dev_set_value,
-        };
-      });
-      setSliderStates(initialStates);
-    }
-  }, [estimatorData]);
+   useEffect(() => {
+     if (estimatorData.length > 0) {
+       const initialStates: Record<string, SliderState> = {};
+       estimatorData.forEach((activity: ProjectEstimatorActivity) => {
+         // Use dev_recc_effort if project_est_data is false, otherwise use dev_set_value
+         const initialValue = activity.project_est_data ? activity.dev_set_value : activity.dev_recc_effort;
+         initialStates[activity.activity] = {
+           value: initialValue,
+           isModified: false,
+           isLoading: false,
+           originalValue: initialValue,
+         };
+       });
+       setSliderStates(initialStates);
+     }
+   }, [estimatorData]);
 
   const handleSliderChange = (activity: string) => (event: Event, newValue: number | number[]) => {
     setSliderStates(prev => ({
@@ -119,14 +121,25 @@ export const EstimationCalculator: React.FC = () => {
     console.log('Using IDs:', { accountId, userId, tenantKey });
 
     try {
-      const activitiesToProcess = estimatorData.filter(activity => 
-        sliderStates[activity.activity]?.isModified
-      );
+      // Check if any activity has project_est_data = false (new project estimation)
+      const hasNewEstimations = estimatorData.some(activity => !activity.project_est_data);
 
-      if (activitiesToProcess.length === 0) {
-        setShowError('No changes detected. Please modify at least one slider.');
-        setIsCalculating(false);
-        return;
+      let activitiesToProcess;
+
+      if (hasNewEstimations) {
+        // If any activity has project_est_data = false, process ALL activities
+        activitiesToProcess = estimatorData;
+      } else {
+        // If all activities have project_est_data = true, only process modified ones
+        activitiesToProcess = estimatorData.filter(activity =>
+          sliderStates[activity.activity]?.isModified
+        );
+
+        if (activitiesToProcess.length === 0) {
+          setShowError('No changes detected. Please modify at least one slider.');
+          setIsCalculating(false);
+          return;
+        }
       }
 
       setTotalProcessed(activitiesToProcess.length);
@@ -345,10 +358,12 @@ export const EstimationCalculator: React.FC = () => {
 
       <Grid container spacing={3}>
         {estimatorData.map((activity: ProjectEstimatorActivity) => {
-          const sliderState = sliderStates[activity.activity];
-          const currentValue = sliderState?.value || activity.dev_set_value;
-          const isModified = sliderState?.isModified || false;
-          const isLoading = sliderState?.isLoading || false;
+           const sliderState = sliderStates[activity.activity];
+           // Use dev_recc_effort if project_est_data is false, otherwise use dev_set_value
+           const defaultValue = activity.project_est_data ? activity.dev_set_value : activity.dev_recc_effort;
+           const currentValue = sliderState?.value || defaultValue;
+           const isModified = sliderState?.isModified || false;
+           const isLoading = sliderState?.isLoading || false;
 
           return (
             <Grid item xs={12} key={activity.id}>

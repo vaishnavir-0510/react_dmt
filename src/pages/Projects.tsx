@@ -24,6 +24,10 @@ import {
   Select,
   MenuItem,
   type SelectChangeEvent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -42,12 +46,12 @@ import type { Project, System, Environment, ProjectUser } from '../types';
 import { ProjectSlideIn } from '../components/projects/ProjectSlideIn';
 import { SystemSlideIn } from '../components/projects/SystemSlideIn';
 import { EnvironmentSlideIn } from '../components/projects/EnvironmentSlideIn';
-import { useUpdateUserWorkspaceMutation } from '../services/workspaceApi';
-import { 
-  useGetSystemsByProjectQuery, 
-  useCreateSystemMutation, 
+import { UserSlideIn } from '../components/projects/UserSlideIn';
+import {
+  useGetSystemsByProjectQuery,
+  useCreateSystemMutation,
   useUpdateSystemMutation,
-  useDeleteSystemMutation 
+  useDeleteSystemMutation
 } from '../services/systemsApi';
 import {
   useGetEnvironmentsByProjectQuery,
@@ -60,14 +64,21 @@ import {
   useAddUserToProjectMutation,
   useRemoveUserFromProjectMutation,
 } from '../services/userApi';
-import { UserSlideIn } from '../components/projects/UserSlideIn';
+import {
+  useCreateProjectMutation,
+  useUpdateProjectMutation,
+  useDeleteProjectMutation,
+} from '../services/projectApi';
+import {
+  useGetAccountQuery,
+} from '../services/accountApi';
 
 export const Projects: React.FC = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { selectedProject } = useSelector((state: RootState) => state.app);
-  const { projects, isLoading, error, refetchProjects, currentWorkspaceProjectId } = useWorkspace();
-  const [updateUserWorkspace] = useUpdateUserWorkspaceMutation();
+   const dispatch = useDispatch();
+   const navigate = useNavigate();
+   const { selectedProject } = useSelector((state: RootState) => state.app);
+   const { user } = useSelector((state: RootState) => state.auth);
+   const { projects, isLoading, error, refetchProjects, currentWorkspaceProjectId, switchProject } = useWorkspace();
   
   // Project states
   const [projectSlideInOpen, setProjectSlideInOpen] = useState(false);
@@ -84,9 +95,37 @@ export const Projects: React.FC = () => {
   const [environmentSlideInOpen, setEnvironmentSlideInOpen] = useState(false);
   const [editingEnvironment, setEditingEnvironment] = useState<Environment | null>(null);
   const [selectedEnvironmentRow, setSelectedEnvironmentRow] = useState<Environment | null>(null);
-   const [userSlideInOpen, setUserSlideInOpen] = useState(false);
+  
+  // User states
+  const [userSlideInOpen, setUserSlideInOpen] = useState(false);
   const [selectedUserRow, setSelectedUserRow] = useState<ProjectUser | null>(null);
- const { 
+
+  // Delete confirmation dialog states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+
+  const [deleteSystemDialogOpen, setDeleteSystemDialogOpen] = useState(false);
+  const [systemToDelete, setSystemToDelete] = useState<System | null>(null);
+
+  const [deleteEnvironmentDialogOpen, setDeleteEnvironmentDialogOpen] = useState(false);
+  const [environmentToDelete, setEnvironmentToDelete] = useState<Environment | null>(null);
+
+  // Data clearing flags for clean project switching
+  const [clearDataFlag, setClearDataFlag] = useState(0);
+
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(3);
+  
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({ 
+    open: false, 
+    message: '', 
+    severity: 'success' as 'success' | 'error' | 'warning' | 'info' 
+  });
+
+  // Fetch project users
+  const { 
     data: projectUsers = [], 
     isLoading: isLoadingUsers, 
     refetch: refetchUsers 
@@ -94,9 +133,408 @@ export const Projects: React.FC = () => {
     skip: !selectedProjectForSystems,
   });
 
+  // Fetch systems when a project is selected
+  const {
+    data: systems = [],
+    isLoading: isLoadingSystems,
+    error: systemsError,
+    refetch: refetchSystems
+  } = useGetSystemsByProjectQuery(selectedProjectForSystems || '', {
+    skip: !selectedProjectForSystems,
+  });
+
+  // Fetch environments when a project is selected
+  const {
+    data: environments = [],
+    isLoading: isLoadingEnvironments,
+    error: environmentsError,
+    refetch: refetchEnvironments
+  } = useGetEnvironmentsByProjectQuery(selectedProjectForSystems || '', {
+    skip: !selectedProjectForSystems,
+  });
+
+  // API mutations
+  const [createSystem] = useCreateSystemMutation();
+  const [updateSystem] = useUpdateSystemMutation();
+  const [deleteSystem] = useDeleteSystemMutation();
+
+  const [createEnvironment] = useCreateEnvironmentMutation();
+  const [updateEnvironment] = useUpdateEnvironmentMutation();
+  const [deleteEnvironment] = useDeleteEnvironmentMutation();
+
+  const [createProject] = useCreateProjectMutation();
+  const [updateProject] = useUpdateProjectMutation();
+  const [deleteProject] = useDeleteProjectMutation();
+
+  const { data: accountData } = useGetAccountQuery();
+
   const [addUserToProject] = useAddUserToProjectMutation();
   const [removeUserFromProject] = useRemoveUserFromProjectMutation();
-// User handlers
+
+  // Set initial selected row to current workspace project
+  useEffect(() => {
+    if (currentWorkspaceProjectId && projects.length > 0 && !selectedProjectRow) {
+      const currentProject = projects.find(p => p.id === currentWorkspaceProjectId);
+      if (currentProject) {
+        setSelectedProjectRow(currentProject);
+        setSelectedProjectForSystems(currentProject.id);
+      }
+    }
+  }, [currentWorkspaceProjectId, projects, selectedProjectRow]);
+
+  // Clear selections and force fresh data when project changes
+  useEffect(() => {
+    if (selectedProjectForSystems) {
+      setSelectedSystemRow(null);
+      setSelectedEnvironmentRow(null);
+      setSelectedUserRow(null);
+    } else {
+      // Clear selections when no project is selected
+      setSelectedSystemRow(null);
+      setSelectedEnvironmentRow(null);
+      setSelectedUserRow(null);
+    }
+  }, [selectedProjectForSystems]);
+
+  // Force refetch when clearDataFlag changes (project switching)
+  useEffect(() => {
+    if (selectedProjectForSystems && clearDataFlag > 0) {
+      refetchSystems();
+      refetchEnvironments();
+      refetchUsers();
+    }
+  }, [clearDataFlag, selectedProjectForSystems, refetchSystems, refetchEnvironments, refetchUsers]);
+
+  // Handle page change
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  // Handle rows per page change
+  const handleChangeRowsPerPage = (event: SelectChangeEvent) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Calculate paginated projects
+  const paginatedProjects = projects.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
+  // Pagination handlers
+  const handleFirstPage = () => setPage(0);
+  const handlePreviousPage = () => setPage((prev) => Math.max(prev - 1, 0));
+  const handleNextPage = () => setPage((prev) => Math.min(prev + 1, Math.ceil(projects.length / rowsPerPage) - 1));
+  const handleLastPage = () => setPage(Math.ceil(projects.length / rowsPerPage) - 1);
+
+  // Project handlers - UPDATED: Use local switchProject instead of API
+  const handleProjectSelect = async (project: Project) => {
+    try {
+      // Use the local project switching method (no API call)
+      await switchProject(project.id);
+      
+      setSnackbar({ 
+        open: true, 
+        message: `Switched to ${project.name || project.project_name}`, 
+        severity: 'success' 
+      });
+    } catch (error) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Failed to switch project', 
+        severity: 'error' 
+      });
+    }
+  };
+
+  const handleProjectRowClick = (project: Project) => {
+    setSelectedProjectRow(project);
+    setSelectedProjectForSystems(project.id);
+    setSelectedSystemRow(null); // Reset system selection
+    setSelectedEnvironmentRow(null); // Reset environment selection
+    setSelectedUserRow(null); // Reset user selection
+
+    // Increment flag to force fresh data queries
+    setClearDataFlag(prev => prev + 1);
+  };
+
+  const handleAddProject = () => {
+    setEditingProject(null);
+    setProjectSlideInOpen(true);
+  };
+
+  const handleEditProject = () => {
+    if (selectedProjectRow) {
+      setEditingProject(selectedProjectRow);
+      setProjectSlideInOpen(true);
+    } else {
+      setSnackbar({ 
+        open: true, 
+        message: 'Please select a project to edit', 
+        severity: 'warning'
+      });
+    }
+  };
+
+  // System handlers
+  const handleSystemRowClick = (system: System) => {
+    setSelectedSystemRow(system);
+    setSelectedEnvironmentRow(null); // Reset environment selection when system is selected
+    setSelectedUserRow(null); // Reset user selection
+  };
+
+  const handleAddSystem = () => {
+    if (!selectedProjectForSystems) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Please select a project first', 
+        severity: 'warning'
+      });
+      return;
+    }
+    setEditingSystem(null);
+    setSystemSlideInOpen(true);
+  };
+
+  const handleEditSystem = () => {
+    if (selectedSystemRow) {
+      setEditingSystem(selectedSystemRow);
+      setSystemSlideInOpen(true);
+    } else {
+      setSnackbar({ 
+        open: true, 
+        message: 'Please select a system to edit', 
+        severity: 'warning'
+      });
+    }
+  };
+
+  const handleSaveSystem = async (systemData: any) => {
+    try {
+      // Get account ID and user ID
+      const accountId = accountData?.id;
+      const userId = user?.user_id;
+
+      if (!accountId) {
+        setSnackbar({
+          open: true,
+          message: 'Unable to get account information. Please try again.',
+          severity: 'error'
+        });
+        return;
+      }
+
+      if (!userId) {
+        setSnackbar({
+          open: true,
+          message: 'Unable to get user information. Please try again.',
+          severity: 'error'
+        });
+        return;
+      }
+
+      // Add account and owner fields to system data
+      const apiData = {
+        ...systemData,
+        account: accountId,
+        owner: userId,
+      };
+
+      if (editingSystem) {
+        await updateSystem({ id: editingSystem.id, data: apiData }).unwrap();
+        setSnackbar({
+          open: true,
+          message: 'System updated successfully',
+          severity: 'success'
+        });
+      } else {
+        await createSystem(apiData).unwrap();
+        setSnackbar({
+          open: true,
+          message: 'System created successfully',
+          severity: 'success'
+        });
+      }
+      setSystemSlideInOpen(false);
+      setEditingSystem(null);
+      refetchSystems();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to save system',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Open system delete confirmation dialog
+  const handleDeleteSystemClick = (system: System) => {
+    setSystemToDelete(system);
+    setDeleteSystemDialogOpen(true);
+  };
+
+  // Confirm delete system
+  const handleConfirmDeleteSystem = async () => {
+    if (!systemToDelete) return;
+
+    try {
+      await deleteSystem(systemToDelete.id).unwrap();
+      setSnackbar({
+        open: true,
+        message: 'System deleted successfully',
+        severity: 'success'
+      });
+      refetchSystems();
+      setSelectedSystemRow(null);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to delete system',
+        severity: 'error'
+      });
+    } finally {
+      setDeleteSystemDialogOpen(false);
+      setSystemToDelete(null);
+    }
+  };
+
+  // Cancel system delete
+  const handleCancelDeleteSystem = () => {
+    setDeleteSystemDialogOpen(false);
+    setSystemToDelete(null);
+  };
+
+  // Environment handlers
+  const handleEnvironmentRowClick = (environment: Environment) => {
+    setSelectedEnvironmentRow(environment);
+    setSelectedSystemRow(null); // Reset system selection when environment is selected
+    setSelectedUserRow(null); // Reset user selection
+  };
+
+  const handleAddEnvironment = () => {
+    if (!selectedProjectForSystems) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Please select a project first', 
+        severity: 'warning'
+      });
+      return;
+    }
+    setEditingEnvironment(null);
+    setEnvironmentSlideInOpen(true);
+  };
+
+  const handleEditEnvironment = () => {
+    if (selectedEnvironmentRow) {
+      setEditingEnvironment(selectedEnvironmentRow);
+      setEnvironmentSlideInOpen(true);
+    } else {
+      setSnackbar({ 
+        open: true, 
+        message: 'Please select an environment to edit', 
+        severity: 'warning'
+      });
+    }
+  };
+
+  const handleSaveEnvironment = async (environmentData: any) => {
+    try {
+      // Get account ID and user ID
+      const accountId = accountData?.id;
+      const userId = user?.user_id;
+
+      if (!accountId) {
+        setSnackbar({
+          open: true,
+          message: 'Unable to get account information. Please try again.',
+          severity: 'error'
+        });
+        return;
+      }
+
+      if (!userId) {
+        setSnackbar({
+          open: true,
+          message: 'Unable to get user information. Please try again.',
+          severity: 'error'
+        });
+        return;
+      }
+
+      // Add account and owner fields to environment data, exclude is_prod
+      const { is_prod, ...environmentDataWithoutIsProd } = environmentData;
+      const apiData = {
+        ...environmentDataWithoutIsProd,
+        account: accountId,
+        owner: userId,
+      };
+
+      if (editingEnvironment) {
+        await updateEnvironment({ id: editingEnvironment.id, data: apiData }).unwrap();
+        setSnackbar({
+          open: true,
+          message: 'Environment updated successfully',
+          severity: 'success'
+        });
+      } else {
+        await createEnvironment(apiData).unwrap();
+        setSnackbar({
+          open: true,
+          message: 'Environment created successfully',
+          severity: 'success'
+        });
+      }
+      setEnvironmentSlideInOpen(false);
+      setEditingEnvironment(null);
+      refetchEnvironments();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to save environment',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Open environment delete confirmation dialog
+  const handleDeleteEnvironmentClick = (environment: Environment) => {
+    setEnvironmentToDelete(environment);
+    setDeleteEnvironmentDialogOpen(true);
+  };
+
+  // Confirm delete environment
+  const handleConfirmDeleteEnvironment = async () => {
+    if (!environmentToDelete) return;
+
+    try {
+      await deleteEnvironment(environmentToDelete.id).unwrap();
+      setSnackbar({
+        open: true,
+        message: 'Environment deleted successfully',
+        severity: 'success'
+      });
+      refetchEnvironments();
+      setSelectedEnvironmentRow(null);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to delete environment',
+        severity: 'error'
+      });
+    } finally {
+      setDeleteEnvironmentDialogOpen(false);
+      setEnvironmentToDelete(null);
+    }
+  };
+
+  // Cancel environment delete
+  const handleCancelDeleteEnvironment = () => {
+    setDeleteEnvironmentDialogOpen(false);
+    setEnvironmentToDelete(null);
+  };
+
+  // User handlers
   const handleUserRowClick = (user: ProjectUser) => {
     setSelectedUserRow(user);
   };
@@ -112,7 +550,6 @@ export const Projects: React.FC = () => {
     }
     setUserSlideInOpen(true);
   };
-
 
   const handleSaveUser = async (userData: any) => {
     try {
@@ -156,304 +593,117 @@ export const Projects: React.FC = () => {
       });
     }
   };
-  // Pagination state
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(3);
-  
-  // Snackbar state
-  const [snackbar, setSnackbar] = useState({ 
-    open: false, 
-    message: '', 
-    severity: 'success' as 'success' | 'error' | 'warning' | 'info' 
-  });
 
-  // Fetch systems when a project is selected
-  const { 
-    data: systems = [], 
-    isLoading: isLoadingSystems, 
-    refetch: refetchSystems 
-  } = useGetSystemsByProjectQuery(selectedProjectForSystems || '', {
-    skip: !selectedProjectForSystems,
-  });
-
-  // Fetch environments when a project is selected
-  const { 
-    data: environments = [], 
-    isLoading: isLoadingEnvironments, 
-    refetch: refetchEnvironments 
-  } = useGetEnvironmentsByProjectQuery(selectedProjectForSystems || '', {
-    skip: !selectedProjectForSystems,
-  });
-
-  const [createSystem] = useCreateSystemMutation();
-  const [updateSystem] = useUpdateSystemMutation();
-  const [deleteSystem] = useDeleteSystemMutation();
-
-  const [createEnvironment] = useCreateEnvironmentMutation();
-  const [updateEnvironment] = useUpdateEnvironmentMutation();
-  const [deleteEnvironment] = useDeleteEnvironmentMutation();
-
-  // Set initial selected row to current workspace project
-  useEffect(() => {
-    if (currentWorkspaceProjectId && projects.length > 0 && !selectedProjectRow) {
-      const currentProject = projects.find(p => p.id === currentWorkspaceProjectId);
-      if (currentProject) {
-        setSelectedProjectRow(currentProject);
-        setSelectedProjectForSystems(currentProject.id);
-      }
-    }
-  }, [currentWorkspaceProjectId, projects, selectedProjectRow]);
-
-  // Handle page change
-  const handleChangePage = (event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
-  // Handle rows per page change
-  const handleChangeRowsPerPage = (event: SelectChangeEvent) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  // Calculate paginated projects
-  const paginatedProjects = projects.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
-
-  // Pagination handlers
-  const handleFirstPage = () => setPage(0);
-  const handlePreviousPage = () => setPage((prev) => Math.max(prev - 1, 0));
-  const handleNextPage = () => setPage((prev) => Math.min(prev + 1, Math.ceil(projects.length / rowsPerPage) - 1));
-  const handleLastPage = () => setPage(Math.ceil(projects.length / rowsPerPage) - 1);
-
-  // Project handlers
-  const handleProjectSelect = async (project: Project) => {
+  // Project save handler
+  const handleSaveProject = async (projectData: any) => {
     try {
-      await updateUserWorkspace({ project: project.id }).unwrap();
-      
-      const basicProject: Project = {
-        id: project.id,
-        name: project.name || project.project_name || '',
-        description: project.description,
+      // Get account ID from account API
+      const accountId = accountData?.id;
+      const userId = user?.user_id;
+
+      if (!accountId) {
+        setSnackbar({
+          open: true,
+          message: 'Unable to get account information. Please try again.',
+          severity: 'error'
+        });
+        return;
+      }
+
+      if (!userId) {
+        setSnackbar({
+          open: true,
+          message: 'Unable to get user information. Please try again.',
+          severity: 'error'
+        });
+        return;
+      }
+
+      // Transform form data to API format
+      const apiData = {
+        project_name: projectData.project_name,
+        description: projectData.description,
+        account_id: accountId,
+        status: projectData.status,
+        start_date: projectData.start_date,
+        end_date: projectData.end_date,
+        client: projectData.client,
+        client_website: projectData.client_website,
+        business_function: projectData.business_function,
+        project_type: projectData.project_type,
+        owner: userId,
+        project_manager: userId,
       };
-      
-      dispatch(setSelectedProject(basicProject));
-      dispatch(switchToApplicationView());
-      navigate('/dashboard');
-      
-      setSnackbar({ 
-        open: true, 
-        message: `Switched to ${project.name || project.project_name}`, 
-        severity: 'success' 
-      });
-    } catch (error) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to switch project', 
-        severity: 'error' 
-      });
-    }
-  };
 
-  const handleProjectRowClick = (project: Project) => {
-    setSelectedProjectRow(project);
-    setSelectedProjectForSystems(project.id);
-    setSelectedSystemRow(null); // Reset system selection
-    setSelectedEnvironmentRow(null); // Reset environment selection
-  };
-
-  const handleAddProject = () => {
-    setEditingProject(null);
-    setProjectSlideInOpen(true);
-  };
-
-  const handleEditProject = () => {
-    if (selectedProjectRow) {
-      setEditingProject(selectedProjectRow);
-      setProjectSlideInOpen(true);
-    } else {
-      setSnackbar({ 
-        open: true, 
-        message: 'Please select a project to edit', 
-        severity: 'warning'
-      });
-    }
-  };
-
-  // System handlers
-  const handleSystemRowClick = (system: System) => {
-    setSelectedSystemRow(system);
-    setSelectedEnvironmentRow(null); // Reset environment selection when system is selected
-  };
-
-  const handleAddSystem = () => {
-    if (!selectedProjectForSystems) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Please select a project first', 
-        severity: 'warning'
-      });
-      return;
-    }
-    setEditingSystem(null);
-    setSystemSlideInOpen(true);
-  };
-
-  const handleEditSystem = () => {
-    if (selectedSystemRow) {
-      setEditingSystem(selectedSystemRow);
-      setSystemSlideInOpen(true);
-    } else {
-      setSnackbar({ 
-        open: true, 
-        message: 'Please select a system to edit', 
-        severity: 'warning'
-      });
-    }
-  };
-
-  const handleSaveSystem = async (systemData: any) => {
-    try {
-      if (editingSystem) {
-        await updateSystem({ id: editingSystem.id, data: systemData }).unwrap();
-        setSnackbar({ 
-          open: true, 
-          message: 'System updated successfully', 
-          severity: 'success' 
+      if (editingProject) {
+        await updateProject({
+          id: editingProject.id,
+          data: apiData
+        }).unwrap();
+        setSnackbar({
+          open: true,
+          message: 'Project updated successfully',
+          severity: 'success'
         });
       } else {
-        await createSystem(systemData).unwrap();
-        setSnackbar({ 
-          open: true, 
-          message: 'System created successfully', 
-          severity: 'success' 
+        await createProject(apiData).unwrap();
+        setSnackbar({
+          open: true,
+          message: 'Project created successfully',
+          severity: 'success'
         });
       }
-      setSystemSlideInOpen(false);
-      setEditingSystem(null);
-      refetchSystems();
+      setProjectSlideInOpen(false);
+      setEditingProject(null);
+      refetchProjects();
     } catch (error) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to save system', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: editingProject ? 'Failed to update project' : 'Failed to create project',
+        severity: 'error'
       });
     }
-  };
-
-  const handleDeleteSystem = async (systemId: string) => {
-    try {
-      await deleteSystem(systemId).unwrap();
-      setSnackbar({ 
-        open: true, 
-        message: 'System deleted successfully', 
-        severity: 'success' 
-      });
-      refetchSystems();
-      setSelectedSystemRow(null);
-    } catch (error) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to delete system', 
-        severity: 'error' 
-      });
-    }
-  };
-
-  // Environment handlers
-  const handleEnvironmentRowClick = (environment: Environment) => {
-    setSelectedEnvironmentRow(environment);
-    setSelectedSystemRow(null); // Reset system selection when environment is selected
-  };
-
-  const handleAddEnvironment = () => {
-    if (!selectedProjectForSystems) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Please select a project first', 
-        severity: 'warning'
-      });
-      return;
-    }
-    setEditingEnvironment(null);
-    setEnvironmentSlideInOpen(true);
-  };
-
-  const handleEditEnvironment = () => {
-    if (selectedEnvironmentRow) {
-      setEditingEnvironment(selectedEnvironmentRow);
-      setEnvironmentSlideInOpen(true);
-    } else {
-      setSnackbar({ 
-        open: true, 
-        message: 'Please select an environment to edit', 
-        severity: 'warning'
-      });
-    }
-  };
-
-  const handleSaveEnvironment = async (environmentData: any) => {
-    try {
-      if (editingEnvironment) {
-        await updateEnvironment({ id: editingEnvironment.id, data: environmentData }).unwrap();
-        setSnackbar({ 
-          open: true, 
-          message: 'Environment updated successfully', 
-          severity: 'success' 
-        });
-      } else {
-        await createEnvironment(environmentData).unwrap();
-        setSnackbar({ 
-          open: true, 
-          message: 'Environment created successfully', 
-          severity: 'success' 
-        });
-      }
-      setEnvironmentSlideInOpen(false);
-      setEditingEnvironment(null);
-      refetchEnvironments();
-    } catch (error) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to save environment', 
-        severity: 'error' 
-      });
-    }
-  };
-
-  const handleDeleteEnvironment = async (environmentId: string) => {
-    try {
-      await deleteEnvironment(environmentId).unwrap();
-      setSnackbar({ 
-        open: true, 
-        message: 'Environment deleted successfully', 
-        severity: 'success' 
-      });
-      refetchEnvironments();
-      setSelectedEnvironmentRow(null);
-    } catch (error) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to delete environment', 
-        severity: 'error' 
-      });
-    }
-  };
-
-  const handleSaveProject = (projectData: any) => {
-    setSnackbar({ 
-      open: true, 
-      message: editingProject ? 'Project updated successfully' : 'Project created successfully', 
-      severity: 'success' 
-    });
-    setProjectSlideInOpen(false);
-    setEditingProject(null);
-    refetchProjects();
   };
 
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
+  };
+
+  // Open delete confirmation dialog
+  const handleDeleteClick = (project: Project) => {
+    setProjectToDelete(project);
+    setDeleteDialogOpen(true);
+  };
+
+  // Confirm delete project
+  const handleConfirmDelete = async () => {
+    if (!projectToDelete) return;
+
+    try {
+      await deleteProject(projectToDelete.id).unwrap();
+      setSnackbar({
+        open: true,
+        message: 'Project deleted successfully',
+        severity: 'success'
+      });
+      refetchProjects();
+      setSelectedProjectRow(null);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to delete project',
+        severity: 'error'
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    }
+  };
+
+  // Cancel delete
+  const handleCancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setProjectToDelete(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -483,7 +733,83 @@ export const Projects: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         Project Management
       </Typography>
-      
+
+      {/* Delete Confirmation Dialogs */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleCancelDelete}
+        aria-labelledby="delete-project-dialog-title"
+        aria-describedby="delete-project-dialog-description"
+      >
+        <DialogTitle id="delete-project-dialog-title">
+          Confirm Delete Project
+        </DialogTitle>
+        <DialogContent>
+          <Typography id="delete-project-dialog-description">
+            Are you sure you want to delete the project "{projectToDelete?.name || projectToDelete?.project_name}"?
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDelete} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteSystemDialogOpen}
+        onClose={handleCancelDeleteSystem}
+        aria-labelledby="delete-system-dialog-title"
+        aria-describedby="delete-system-dialog-description"
+      >
+        <DialogTitle id="delete-system-dialog-title">
+          Confirm Delete System
+        </DialogTitle>
+        <DialogContent>
+          <Typography id="delete-system-dialog-description">
+            Are you sure you want to delete the system "{systemToDelete?.name}"?
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDeleteSystem} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmDeleteSystem} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteEnvironmentDialogOpen}
+        onClose={handleCancelDeleteEnvironment}
+        aria-labelledby="delete-environment-dialog-title"
+        aria-describedby="delete-environment-dialog-description"
+      >
+        <DialogTitle id="delete-environment-dialog-title">
+          Confirm Delete Environment
+        </DialogTitle>
+        <DialogContent>
+          <Typography id="delete-environment-dialog-description">
+            Are you sure you want to delete the environment "{environmentToDelete?.name}"?
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDeleteEnvironment} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmDeleteEnvironment} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Grid container spacing={3}>
         {/* Projects Table */}
         <Grid item xs={12}>
@@ -536,6 +862,14 @@ export const Projects: React.FC = () => {
                         {selectedProject.description}
                       </Typography>
                     )}
+                    {selectedProject.project_type && (
+                      <Chip
+                        label={selectedProject.project_type === 'file migration' ? 'FILE MIGRATION' : selectedProject.project_type.toUpperCase()}
+                        size="small"
+                        color="secondary"
+                        sx={{ mt: 1, color: 'white' }}
+                      />
+                    )}
                   </Box>
                   <Chip 
                     label="Active" 
@@ -564,6 +898,7 @@ export const Projects: React.FC = () => {
                     <TableCell>End Date</TableCell>
                     <TableCell>Client</TableCell>
                     <TableCell>Actions</TableCell>
+                    <TableCell>Delete</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -590,7 +925,7 @@ export const Projects: React.FC = () => {
                           </Typography>
                           {project.id === currentWorkspaceProjectId && (
                             <Chip 
-                              label="Current" 
+                              label="Workspace" 
                               size="small" 
                               color="primary"
                               variant="outlined"
@@ -619,8 +954,8 @@ export const Projects: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={project.project_type} 
+                        <Chip
+                          label={project.project_type === 'file migration' ? 'FILE MIGRATION' : project.project_type}
                           size="small"
                           color="secondary"
                           variant="outlined"
@@ -634,16 +969,29 @@ export const Projects: React.FC = () => {
                       </TableCell>
                       <TableCell>{project.client}</TableCell>
                       <TableCell>
-                        <Button 
-                          variant="outlined" 
+                        <Button
+                          variant="outlined"
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleProjectSelect(project);
                           }}
-                          disabled={project.id === currentWorkspaceProjectId}
+                          disabled={project.id === selectedProject?.id}
                         >
-                          {project.id === currentWorkspaceProjectId ? 'Active' : 'Select'}
+                          {project.id === selectedProject?.id ? 'Active' : 'Select'}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="error"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(project);
+                          }}
+                        >
+                          Delete
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -653,14 +1001,16 @@ export const Projects: React.FC = () => {
             </TableContainer>
             
             {projects.length === 0 && (
-              <Box sx={{ p: 4, textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary">
-                  No projects found
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Click "Add Project" to create your first project
-                </Typography>
-              </Box>
+              <TableRow>
+                <TableCell colSpan={10} align="center">
+                  <Typography variant="h6" color="text.secondary">
+                    No projects found
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Click "Add Project" to create your first project
+                  </Typography>
+                </TableCell>
+              </TableRow>
             )}
 
             {/* Projects Pagination */}
@@ -805,7 +1155,15 @@ export const Projects: React.FC = () => {
                           </Typography>
                         </TableCell>
                       </TableRow>
-                    ) : systems.length === 0 ? (
+                    ) : (systemsError && 'status' in systemsError && systemsError.status !== 404) ? (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center">
+                          <Typography variant="body2" color="error">
+                            Failed to load systems
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : systems.length === 0 || (systemsError && 'status' in systemsError && systemsError.status === 404) ? (
                       <TableRow>
                         <TableCell colSpan={6} align="center">
                           <Typography variant="body2" color="text.secondary">
@@ -851,13 +1209,13 @@ export const Projects: React.FC = () => {
                             {system.modified_date ? formatDate(system.modified_date) : 'N/A'}
                           </TableCell>
                           <TableCell>
-                            <Button 
-                              variant="outlined" 
+                            <Button
+                              variant="outlined"
                               size="small"
                               color="error"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteSystem(system.id);
+                                handleDeleteSystemClick(system);
                               }}
                             >
                               Delete
@@ -930,7 +1288,15 @@ export const Projects: React.FC = () => {
                           </Typography>
                         </TableCell>
                       </TableRow>
-                    ) : environments.length === 0 ? (
+                    ) : (environmentsError && 'status' in environmentsError && environmentsError.status !== 404) ? (
+                      <TableRow>
+                        <TableCell colSpan={7} align="center">
+                          <Typography variant="body2" color="error">
+                            Failed to load environments
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : environments.length === 0 || (environmentsError && 'status' in environmentsError && environmentsError.status === 404) ? (
                       <TableRow>
                         <TableCell colSpan={7} align="center">
                           <Typography variant="body2" color="text.secondary">
@@ -988,13 +1354,13 @@ export const Projects: React.FC = () => {
                             {environment.modified_date ? formatDate(environment.modified_date) : 'N/A'}
                           </TableCell>
                           <TableCell>
-                            <Button 
-                              variant="outlined" 
+                            <Button
+                              variant="outlined"
                               size="small"
                               color="error"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteEnvironment(environment.id);
+                                handleDeleteEnvironmentClick(environment);
                               }}
                             >
                               Delete
@@ -1008,7 +1374,9 @@ export const Projects: React.FC = () => {
               </TableContainer>
             </Paper>
           </Grid>
-        )}        {/* Users Table - Only show when a project is selected */}
+        )}
+
+        {/* Users Table - Only show when a project is selected */}
         {selectedProjectForSystems && (
           <Grid item xs={12}>
             <Card elevation={3} sx={{ mt: 3 }}>
@@ -1133,8 +1501,6 @@ export const Projects: React.FC = () => {
             </Paper>
           </Grid>
         )}
-    
-
       </Grid>
 
       {/* Slide-in Panels */}
@@ -1159,7 +1525,8 @@ export const Projects: React.FC = () => {
         projectId={selectedProjectForSystems || ''}
         onClose={() => setEnvironmentSlideInOpen(false)}
         onSave={handleSaveEnvironment}
-      />  {/* Add UserSlideIn to your slide-in panels */}
+      />
+
       <UserSlideIn 
         open={userSlideInOpen}
         projectId={selectedProjectForSystems || ''}
@@ -1169,9 +1536,9 @@ export const Projects: React.FC = () => {
       />
 
       {/* Snackbar for notifications */}
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={4000} 
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >

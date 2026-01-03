@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { AuthResponse, LoginCredentials } from '../../types';
-import { updateAccessToken, logout, setLoading, setError, clearError } from '../slices/authSlice';
+import { updateTokens, logout, setLoading, setError, clearError } from '../slices/authSlice';
 
 const baseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_API_BASE_URL}`,
@@ -9,9 +9,38 @@ const baseQuery = fetchBaseQuery({
     if (token) {
       headers.set('authorization', `Bearer ${token}`);
     }
+    headers.set('Accept', 'application/json');
     headers.set('Content-Type', 'application/json');
     return headers;
   },
+  fetchFn: async (input, init) => {
+    console.log('🌐 HTTP REQUEST:', {
+      url: input,
+      method: init?.method,
+      headers: init?.headers ? Object.fromEntries((init.headers as Headers).entries()) : undefined,
+      body: init?.body ? (typeof init.body === 'string' ? JSON.parse(init.body) : init.body) : undefined
+    });
+
+    const response = await fetch(input, init);
+
+    console.log('🌐 HTTP RESPONSE:', {
+      url: input,
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+
+    // Clone response to read body without consuming it
+    const clonedResponse = response.clone();
+    try {
+      const responseBody = await clonedResponse.json();
+      console.log('🌐 HTTP RESPONSE BODY:', responseBody);
+    } catch (e) {
+      console.log('🌐 HTTP RESPONSE BODY: (not JSON or empty)');
+    }
+
+    return response;
+  }
 });
 
 const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
@@ -32,9 +61,14 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
       );
 
       if (refreshResult.data) {
-        const { access_token } = refreshResult.data as any;
-        api.dispatch(updateAccessToken(access_token));
-        
+        const { access_token, refresh_token: newRefreshToken } = refreshResult.data as any;
+
+        // Update both tokens
+        api.dispatch(updateTokens({
+          accessToken: access_token,
+          refreshToken: newRefreshToken || refreshToken
+        }));
+
         // Retry original request with new token
         result = await baseQuery(args, api, extraOptions);
       } else {
@@ -74,7 +108,7 @@ export const authApi = createApi({
         }
       },
     }),
-    refreshToken: builder.mutation<{ access_token: string }, { refresh_token: string }>({
+    refreshToken: builder.mutation<{ access_token: string; refresh_token: string }, { refresh_token: string }>({
       query: (credentials) => ({
         url: '/auth/v3/refresh_token',
         method: 'POST',

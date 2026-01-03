@@ -20,23 +20,36 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Snackbar,
 } from '@mui/material';
 import {
   Edit as EditIcon,
   Add as AddIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import { useGetSystemsByProjectQuery } from '../../services/systemsApi';
-import { useGetObjectsBySystemQuery } from '../../services/objectsApi';
+import { useGetObjectsBySystemQuery, useDeleteObjectMutation } from '../../services/objectsApi';
 import type { ObjectData } from '../../services/objectsApi';
 import { ObjectSlideIn } from './ObjectSlideIn';
+
 
 export const SourceObjectsTab: React.FC = () => {
   const { selectedProject } = useSelector((state: RootState) => state.app);
   const [selectedSystemId, setSelectedSystemId] = useState<string>('');
   const [slideInOpen, setSlideInOpen] = useState(false);
   const [editingObject, setEditingObject] = useState<ObjectData | null>(null);
+  const [selectedObject, setSelectedObject] = useState<ObjectData | null>(null);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
 
   // Fetch systems for the project - automatically refetches when project changes
   const {
@@ -61,6 +74,8 @@ export const SourceObjectsTab: React.FC = () => {
     refetchOnMountOrArgChange: true,
   });
 
+  const [deleteObject, { isLoading: isDeleting }] = useDeleteObjectMutation();
+
   // Auto-select first source system when systems load or project changes
   useEffect(() => {
     if (sourceSystems.length > 0) {
@@ -84,14 +99,56 @@ export const SourceObjectsTab: React.FC = () => {
     setSlideInOpen(true);
   };
 
-  const handleEditObject = (object: ObjectData) => {
-    setEditingObject(object);
+  const handleEditObject = () => {
+    if (!selectedObject) {
+      setSnackbar({
+        open: true,
+        message: 'Please select a row first which you want to edit',
+        severity: 'warning',
+      });
+      return;
+    }
+    setEditingObject(selectedObject);
     setSlideInOpen(true);
+  };
+
+  const handleRowClick = (object: ObjectData) => {
+    setSelectedObject(object);
+    setSnackbar({
+      open: true,
+      message: `Selected object: ${object.name}`,
+      severity: 'info',
+    });
+  };
+
+  const handleDeleteObject = async (object: ObjectData) => {
+    try {
+      await deleteObject(object.object_id).unwrap();
+      setSnackbar({
+        open: true,
+        message: `Successfully deleted object: ${object.name}`,
+        severity: 'success',
+      });
+      if (selectedObject?.object_id === object.object_id) {
+        setSelectedObject(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete object:', error);
+      setSnackbar({
+        open: true,
+        message: `Failed to delete object: ${object.name}`,
+        severity: 'error',
+      });
+    }
   };
 
   const handleSlideInClose = () => {
     setSlideInOpen(false);
     setEditingObject(null);
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
   };
 
   const getStatusColor = (isCompleted: boolean) => {
@@ -137,14 +194,24 @@ export const SourceObjectsTab: React.FC = () => {
           </Select>
         </FormControl>
 
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddObject}
-          disabled={!selectedSystemId || isLoadingSystems}
-        >
-          Add Object
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddObject}
+            disabled={!selectedSystemId || isLoadingSystems}
+          >
+            Add Object
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<EditIcon />}
+            onClick={handleEditObject}
+            disabled={!selectedSystemId || isLoadingSystems || !selectedObject}
+          >
+            Edit Object
+          </Button>
+        </Box>
       </Box>
 
       {/* Loading State */}
@@ -199,7 +266,15 @@ export const SourceObjectsTab: React.FC = () => {
             </TableHead>
             <TableBody>
               {objects.map((object) => (
-                <TableRow key={object.object_id} hover>
+                <TableRow
+                  key={object.object_id}
+                  hover
+                  onClick={() => handleRowClick(object)}
+                  sx={{
+                    cursor: 'pointer',
+                    backgroundColor: selectedObject?.object_id === object.object_id ? 'action.selected' : 'inherit',
+                  }}
+                >
                   <TableCell>
                     <Typography variant="body2" fontWeight="medium">
                       {object.name}
@@ -211,41 +286,45 @@ export const SourceObjectsTab: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={object.records_count || '0'} 
+                    <Chip
+                      label={object.records_count || '0'}
                       size="small"
                       variant="outlined"
                     />
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={object.field_count?.toString() || '0'} 
+                    <Chip
+                      label={object.field_count?.toString() || '0'}
                       size="small"
                       variant="outlined"
                     />
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={object.operation} 
+                    <Chip
+                      label={object.operation}
                       size="small"
                       color={getOperationColor(object.operation)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={object.is_completed ? 'Completed' : 'In Progress'} 
+                    <Chip
+                      label={object.is_completed ? 'Completed' : 'In Progress'}
                       size="small"
                       color={getStatusColor(object.is_completed)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Tooltip title="Edit Object">
+                    <Tooltip title="Delete Object">
                       <IconButton
                         size="small"
-                        onClick={() => handleEditObject(object)}
-                        color="primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteObject(object);
+                        }}
+                        color="error"
+                        disabled={isDeleting}
                       >
-                        <EditIcon />
+                        <DeleteIcon />
                       </IconButton>
                     </Tooltip>
                   </TableCell>
@@ -264,6 +343,22 @@ export const SourceObjectsTab: React.FC = () => {
         systemId={selectedSystemId}
         systemType="source"
       />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

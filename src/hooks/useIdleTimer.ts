@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useIdleTimer } from 'react-idle-timer';
 import { useAuth } from './useAuth';
 import { useDispatch } from 'react-redux';
+
+import { updateTokens } from '../store/slices/authSlice';
 import { useRefreshTokenMutation } from '../store/api/authApi';
-import { updateAccessToken } from '../store/slices/authSlice';
 
 interface UseIdleTimerHookReturn {
   showIdleDialog: boolean;
@@ -19,7 +20,7 @@ export const useIdleTimerHook = (): UseIdleTimerHookReturn => {
   const [refreshToken] = useRefreshTokenMutation();
   const [showIdleDialog, setShowIdleDialog] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  
+
   const refreshIntervalRef = useRef<number | undefined>(undefined);
   const countdownRef = useRef<number | undefined>(undefined);
 
@@ -37,7 +38,11 @@ export const useIdleTimerHook = (): UseIdleTimerHookReturn => {
       const refreshTokenValue = localStorage.getItem('refreshToken');
       if (refreshTokenValue) {
         const result = await refreshToken({ refresh_token: refreshTokenValue }).unwrap();
-        dispatch(updateAccessToken(result.access_token));
+        // Update both tokens
+        dispatch(updateTokens({
+          accessToken: result.access_token,
+          refreshToken: result.refresh_token || refreshTokenValue
+        }));
         console.log('Token refreshed successfully');
       }
     } catch (error) {
@@ -46,7 +51,7 @@ export const useIdleTimerHook = (): UseIdleTimerHookReturn => {
     }
   }, [refreshToken, dispatch, logout]);
 
-  // Token refresh logic
+  // Token refresh logic - Proactive refresh at 25 minutes (5 mins before 30 min expiry)
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
 
@@ -56,6 +61,7 @@ export const useIdleTimerHook = (): UseIdleTimerHookReturn => {
         const now = Date.now();
         const fiveMinutes = 5 * 60 * 1000;
 
+        // If token expires in 5 minutes or less, refresh it
         if (tokenExpiry - now <= fiveMinutes) {
           refreshAccessToken();
         }
@@ -101,10 +107,10 @@ export const useIdleTimerHook = (): UseIdleTimerHookReturn => {
 
   const onIdle = useCallback(() => {
     if (!isAuthenticated) return;
-    
+
     setShowIdleDialog(true);
     setCountdown(60); // 1 minute countdown
-    
+
     countdownRef.current = window.setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {

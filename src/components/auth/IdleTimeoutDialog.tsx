@@ -45,3 +45,5 @@ export const IdleTimeoutDialog: React.FC<IdleTimeoutDialogProps> = ({
     </Dialog>
   );
 };
+
+

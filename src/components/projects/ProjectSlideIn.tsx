@@ -36,7 +36,6 @@ export const ProjectSlideIn: React.FC<ProjectSlideInProps> = ({
   const [formData, setFormData] = useState({
     project_name: '',
     description: '',
-    account_name: '',
     status: 'InProgress',
     start_date: '',
     end_date: '',
@@ -51,31 +50,29 @@ export const ProjectSlideIn: React.FC<ProjectSlideInProps> = ({
   useEffect(() => {
     if (project) {
       setFormData({
-        project_name: project.name || project.project_name || '',
-        description: project.description || '',
-        account_name: project.account_name || 'Data',
-        status: project.status || 'InProgress',
-        start_date: project.start_date || '',
-        end_date: project.end_date || '',
-        client: project.client || '',
-        client_website: project.client_website || '',
-        business_function: project.business_function || '',
-        project_type: project.project_type || 'migration',
-      });
+         project_name: project.name || project.project_name || '',
+         description: project.description || '',
+         status: project.status || 'InProgress',
+         start_date: project.start_date || '',
+         end_date: project.end_date || '',
+         client: project.client || '',
+         client_website: project.client_website || '',
+         business_function: project.business_function || '',
+         project_type: project.project_type || 'migration',
+       });
     } else {
       // Reset form for new project
-      setFormData({
-        project_name: '',
-        description: '',
-        account_name: 'Data',
-        status: 'InProgress',
-        start_date: '',
-        end_date: '',
-        client: '',
-        client_website: '',
-        business_function: '',
-        project_type: 'migration',
-      });
+       setFormData({
+         project_name: '',
+         description: '',
+         status: 'InProgress',
+         start_date: '',
+         end_date: '',
+         client: '',
+         client_website: '',
+         business_function: '',
+         project_type: 'migration',
+       });
     }
     setErrors({});
   }, [project, open]);
@@ -188,14 +185,6 @@ export const ProjectSlideIn: React.FC<ProjectSlideInProps> = ({
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Account Name"
-                  value={formData.account_name}
-                  onChange={(e) => handleChange('account_name', e.target.value)}
-                  fullWidth
-                />
-              </Grid>
 
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
@@ -279,7 +268,8 @@ export const ProjectSlideIn: React.FC<ProjectSlideInProps> = ({
                   >
                     <MenuItem value="migration">Migration</MenuItem>
                     <MenuItem value="backup">Backup</MenuItem>
-                    <MenuItem value="development">Development</MenuItem>
+                    <MenuItem value="translation">Translation</MenuItem>
+                    <MenuItem value="file migration">File Migration</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

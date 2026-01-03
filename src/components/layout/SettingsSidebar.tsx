@@ -1,3 +1,4 @@
+// components/layout/SettingsSidebar.tsx
 import React from 'react';
 import {
   Drawer,
@@ -20,17 +21,15 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import type { RootState } from '../../store';
-import { setSelectedProject, switchToApplicationView, setActiveMenu } from '../../store/slices/appSlice';
+import { setActiveMenu, switchToApplicationView } from '../../store/slices/appSlice';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useUpdateUserWorkspaceMutation } from '../../services/workspaceApi';
 
 export const SettingsSidebar: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedProject, activeMenu } = useSelector((state: RootState) => state.app);
-  const { projects, isLoading, currentWorkspaceProjectId } = useWorkspace();
-  const [updateUserWorkspace] = useUpdateUserWorkspaceMutation();
+  const { projects, currentWorkspaceProjectId, switchProject } = useWorkspace();
 
   const handleAccountClick = () => {
     dispatch(setActiveMenu('account'));
@@ -49,28 +48,45 @@ export const SettingsSidebar: React.FC = () => {
 
   const handleProjectSelect = async (project: any) => {
     try {
-      // Update user workspace with the selected project
-      await updateUserWorkspace({ project: project.id }).unwrap();
-      
-      // Convert to basic Project for Redux store
-      const basicProject = {
-        id: project.id,
-        name: project.name || project.project_name || '',
-        description: project.description,
-      };
-      
-      dispatch(setSelectedProject(basicProject));
+      await switchProject(project.id);
+      // Switch to application view after project selection
       dispatch(switchToApplicationView());
-      dispatch(setActiveMenu('dashboard'));
-      navigate('/dashboard');
     } catch (error) {
       console.error('Failed to switch project:', error);
     }
   };
 
-  // Check if current route is active
+  // Check if current route is active - use exact match for settings
   const isActiveRoute = (path: string) => {
     return location.pathname === path;
+  };
+
+  const getProjectTypeColor = (projectType?: string) => {
+    switch (projectType) {
+      case 'backup':
+        return 'info';
+      case 'translation':
+        return 'warning';
+      case 'file migration':
+        return 'secondary';
+      case 'migration':
+      default:
+        return 'primary';
+    }
+  };
+
+  const getProjectTypeText = (projectType?: string) => {
+    switch (projectType) {
+      case 'backup':
+        return 'BACKUP';
+      case 'translation':
+        return 'TRANSLATION';
+      case 'file migration':
+        return 'FILE MIGRATION';
+      case 'migration':
+      default:
+        return 'MIGRATION';
+    }
   };
 
   return (
@@ -213,6 +229,12 @@ export const SettingsSidebar: React.FC = () => {
               <Typography variant="body2" fontWeight="bold" color="success.contrastText">
                 {selectedProject.name}
               </Typography>
+              <Chip 
+                label={getProjectTypeText(selectedProject.project_type)}
+                size="small"
+                color={getProjectTypeColor(selectedProject.project_type) as any}
+                sx={{ mt: 0.5, fontSize: '0.6rem', color: 'white' }}
+              />
             </Box>
           )}
 
@@ -236,7 +258,20 @@ export const SettingsSidebar: React.FC = () => {
                 }}
               >
                 <ListItemText 
-                  primary={project.name || project.project_name}
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" fontSize="0.85rem">
+                        {project.name || project.project_name}
+                      </Typography>
+                      <Chip 
+                        label={getProjectTypeText(project.project_type)}
+                        size="small"
+                        color={getProjectTypeColor(project.project_type) as any}
+                        variant="outlined"
+                        sx={{ fontSize: '0.55rem', height: 18 }}
+                      />
+                    </Box>
+                  }
                   secondary={project.description}
                   primaryTypographyProps={{
                     fontSize: '0.85rem',
@@ -248,9 +283,9 @@ export const SettingsSidebar: React.FC = () => {
                 />
                 {project.id === currentWorkspaceProjectId && (
                   <Chip 
-                    label="Current" 
+                    label="Workspace" 
                     size="small" 
-                    color="primary"
+                    color="secondary"
                     sx={{ ml: 1, fontSize: '0.6rem' }}
                   />
                 )}
@@ -259,7 +294,7 @@ export const SettingsSidebar: React.FC = () => {
           </Box>
 
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            Click any project to switch and return to dashboard
+            Click any project to switch and return to appropriate dashboard
           </Typography>
         </Box>
       </Box>
