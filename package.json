@@ -15,7 +15,7 @@
     "build:prod": "vite build --mode production",
     "build:github": "vite build --mode github",
     "predeploy": "npm run build:github",
-    "deploy": "gh-pages --clean --dist dist --branch gh-pages",
+    "deploy": "gh-pages -d dist",
     "lint": "eslint .",
     "preview": "vite preview"
   },
