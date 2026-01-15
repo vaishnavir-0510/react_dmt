@@ -1,0 +1,30 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  VITE_ENVIRONMENT = "production"
+  VITE_API_BASE_URL = "https://api.datamatter.tech"
+  VITE_WS_BASE_URL = "wss://api.datamatter.tech"
+
+# For different environments, you can use branch-specific builds
+[[context.production.environment]]
+  VITE_ENVIRONMENT = "prod"
+  VITE_API_BASE_URL = "https://api.datamatter.tech"
+  VITE_WS_BASE_URL = "wss://api.datamatter.tech"
+
+[[context.deploy-preview.environment]]
+  VITE_ENVIRONMENT = "dev"
+  VITE_API_BASE_URL = "https://api-dev.datamatter.tech"
+  VITE_WS_BASE_URL = "wss://api-dev.datamatter.tech"
+
+[[context.branch-deploy.environment]]
+  VITE_ENVIRONMENT = "dev"
+  VITE_API_BASE_URL = "https://api-dev.datamatter.tech"
+  VITE_WS_BASE_URL = "wss://api-dev.datamatter.tech"
+

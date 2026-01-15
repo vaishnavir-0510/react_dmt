@@ -1,0 +1,77 @@
+===========================================
+COMPLETE GITHUB PAGES DEPLOYMENT GUIDE
+===========================================
+
+REPOSITORY: react_dmt
+GitHub URL: https://github.com/vaishnavir-0510/react_dmt
+Deployed URL: https://vaishnavir-0510.github.io/react_dmt/
+
+===========================================
+STEP 1: INSTALL PACKAGES
+===========================================
+
+Open PowerShell in your project folder and run:
+
+npm install
+npm install --save-dev gh-pages
+
+===========================================
+STEP 2: BUILD AND DEPLOY
+===========================================
+
+Run these commands in order:
+
+npm run build:github
+npm run deploy
+
+===========================================
+STEP 3: ENABLE GITHUB PAGES
+===========================================
+
+1. Go to: https://github.com/vaishnavir-0510/react_dmt
+2. Click "Settings" (top menu)
+3. Click "Pages" (left sidebar)
+4. Under "Source":
+   - Select: "Deploy from a branch"
+   - Branch: "gh-pages"
+   - Folder: "/ (root)"
+5. Click "Save"
+
+Wait 5-10 minutes, then visit:
+https://vaishnavir-0510.github.io/react_dmt/
+
+===========================================
+CONFIGURATION
+===========================================
+
+✅ API URL: https://api-dev.datamatter.tech
+✅ WebSocket URL: wss://api-dev.datamatter.tech
+✅ Environment: dev
+✅ Repository: react_dmt
+
+===========================================
+TO UPDATE DEPLOYMENT
+===========================================
+
+Just run:
+npm run build:github
+npm run deploy
+
+===========================================
+TROUBLESHOOTING
+===========================================
+
+If "gh-pages" command not found:
+  npm install --save-dev gh-pages
+
+If build fails:
+  npm run build
+  (check for errors)
+
+If site shows 404:
+  - Wait 5-10 minutes
+  - Check GitHub Pages settings
+  - Verify branch is "gh-pages"
+
+===========================================
+
