@@ -43,6 +43,7 @@ import { ValidateTab } from '../migration/tabs/ValidateTab';
 import { LoadTab } from '../migration/tabs/LoadTab';
 import { ErrorTab } from '../migration/tabs/ErrorTab';
 import FileMigrationWorkflowsHistory from '../filemigration/FileMigrationWorkflowsHistory';
+import { ActivityProvider } from '../migration/ActivityProvider';
 
 const FILE_MIGRATION_TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: <DashboardIcon />, path: '/file-migration/upload' },
@@ -192,6 +193,22 @@ export const FileMigrationLayout: React.FC = () => {
               fontWeight: 500,
               minWidth: 120,
               px: 2,
+              borderRadius: '8px 8px 0 0',
+              marginRight: 1,
+              '&.Mui-selected': {
+                backgroundColor: '#0b378aff',
+                color: 'white',
+                fontWeight: 600,
+              },
+              '&:hover': {
+                backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                '&.Mui-selected': {
+                  backgroundColor: '#0b378aff',
+                },
+              },
+            },
+            '& .MuiTabs-indicator': {
+              display: 'none',
             },
           }}
         >
@@ -231,7 +248,9 @@ export const FileMigrationLayout: React.FC = () => {
               borderRadius: 2,
             }}
           >
-            {renderTabContent()}
+            <ActivityProvider>
+              {renderTabContent()}
+            </ActivityProvider>
           </Paper>
         </Box>
       </Box>

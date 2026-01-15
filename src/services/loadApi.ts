@@ -46,13 +46,20 @@ export const loadApi = createApi({
 
   endpoints: (builder) => ({
     // GET TABLE DATA - Update types to accept string | undefined
-    getLoadIteration: builder.query<LoadIterationRow[], { objectId?: string; projectId?: string }>({
-      query: ({ objectId, projectId }) => {
+    getLoadIteration: builder.query<LoadIterationRow[], { objectId?: string; projectId?: string; environmentId?: string }>({
+      query: ({ objectId, projectId, environmentId }) => {
         // Add validation to ensure required parameters are present
         if (!objectId || !projectId) {
           throw new Error('objectId and projectId are required');
         }
-        return `/migration/v1/iteration/data/?object=${objectId}&project=${projectId}`;
+        const params = new URLSearchParams({
+          object: objectId,
+          project: projectId,
+        });
+        if (environmentId) {
+          params.append('environment', environmentId);
+        }
+        return `/migration/v1/iteration/data/?${params.toString()}`;
       },
       providesTags: ["LoadIteration"],
     }),

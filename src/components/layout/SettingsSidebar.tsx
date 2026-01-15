@@ -11,25 +11,21 @@ import {
   Box,
   Typography,
   Divider,
-  Chip,
 } from '@mui/material';
 import {
   AccountCircle as AccountIcon,
   Person as UserIcon,
   Folder as ProjectIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
-import { useDispatch, useSelector } from 'react-redux';
-import { useWorkspace } from '../../hooks/useWorkspace';
-import type { RootState } from '../../store';
-import { setActiveMenu, switchToApplicationView } from '../../store/slices/appSlice';
+import { useDispatch } from 'react-redux';
+import { setActiveMenu } from '../../store/slices/appSlice';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export const SettingsSidebar: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { selectedProject, activeMenu } = useSelector((state: RootState) => state.app);
-  const { projects, currentWorkspaceProjectId, switchProject } = useWorkspace();
 
   const handleAccountClick = () => {
     dispatch(setActiveMenu('account'));
@@ -46,47 +42,14 @@ export const SettingsSidebar: React.FC = () => {
     navigate('/projects');
   };
 
-  const handleProjectSelect = async (project: any) => {
-    try {
-      await switchProject(project.id);
-      // Switch to application view after project selection
-      dispatch(switchToApplicationView());
-    } catch (error) {
-      console.error('Failed to switch project:', error);
-    }
+  const handleSecurityPoliciesClick = () => {
+    dispatch(setActiveMenu('security-policies'));
+    navigate('/security-policies');
   };
 
   // Check if current route is active - use exact match for settings
   const isActiveRoute = (path: string) => {
     return location.pathname === path;
-  };
-
-  const getProjectTypeColor = (projectType?: string) => {
-    switch (projectType) {
-      case 'backup':
-        return 'info';
-      case 'translation':
-        return 'warning';
-      case 'file migration':
-        return 'secondary';
-      case 'migration':
-      default:
-        return 'primary';
-    }
-  };
-
-  const getProjectTypeText = (projectType?: string) => {
-    switch (projectType) {
-      case 'backup':
-        return 'BACKUP';
-      case 'translation':
-        return 'TRANSLATION';
-      case 'file migration':
-        return 'FILE MIGRATION';
-      case 'migration':
-      default:
-        return 'MIGRATION';
-    }
   };
 
   return (
@@ -129,6 +92,9 @@ export const SettingsSidebar: React.FC = () => {
                 '&.Mui-selected': {
                   backgroundColor: 'primary.light',
                   color: 'primary.contrastText',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  margin: '8px 12px',
                   '&:hover': {
                     backgroundColor: 'primary.main',
                   },
@@ -153,13 +119,16 @@ export const SettingsSidebar: React.FC = () => {
 
           {/* User */}
           <ListItem disablePadding>
-            <ListItemButton 
+            <ListItemButton
               onClick={handleUserClick}
               selected={isActiveRoute('/users')}
               sx={{
                 '&.Mui-selected': {
                   backgroundColor: 'primary.light',
                   color: 'primary.contrastText',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  margin: '8px 12px',
                   '&:hover': {
                     backgroundColor: 'primary.main',
                   },
@@ -184,13 +153,16 @@ export const SettingsSidebar: React.FC = () => {
 
           {/* Project Selection */}
           <ListItem disablePadding>
-            <ListItemButton 
+            <ListItemButton
               onClick={handleProjectClick}
               selected={isActiveRoute('/projects')}
               sx={{
                 '&.Mui-selected': {
                   backgroundColor: 'primary.light',
                   color: 'primary.contrastText',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  margin: '8px 12px',
                   '&:hover': {
                     backgroundColor: 'primary.main',
                   },
@@ -212,91 +184,41 @@ export const SettingsSidebar: React.FC = () => {
               />
             </ListItemButton>
           </ListItem>
-        </List>
 
-        {/* Quick Project Selection Section */}
-        <Box sx={{ p: 2 }}>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            QUICK PROJECT SELECTION
-          </Typography>
-          
-          {/* Current Selection Info */}
-          {selectedProject && (
-            <Box sx={{ mb: 2, p: 1.5, backgroundColor: 'success.light', borderRadius: 1 }}>
-              <Typography variant="caption" color="success.contrastText" display="block">
-                Active Project:
-              </Typography>
-              <Typography variant="body2" fontWeight="bold" color="success.contrastText">
-                {selectedProject.name}
-              </Typography>
-              <Chip 
-                label={getProjectTypeText(selectedProject.project_type)}
-                size="small"
-                color={getProjectTypeColor(selectedProject.project_type) as any}
-                sx={{ mt: 0.5, fontSize: '0.6rem', color: 'white' }}
-              />
-            </Box>
-          )}
-
-          {/* Project List */}
-          <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
-            {projects.map((project) => (
-              <ListItemButton
-                key={project.id}
-                onClick={() => handleProjectSelect(project)}
-                selected={selectedProject?.id === project.id}
-                sx={{
-                  mb: 0.5,
-                  borderRadius: 1,
-                  '&.Mui-selected': {
+          {/* Security Policies */}
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={handleSecurityPoliciesClick}
+              selected={isActiveRoute('/security-policies')}
+              sx={{
+                '&.Mui-selected': {
+                  backgroundColor: 'primary.light',
+                  color: 'primary.contrastText',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  margin: '8px 12px',
+                  '&:hover': {
                     backgroundColor: 'primary.main',
-                    color: 'primary.contrastText',
-                    '&:hover': {
-                      backgroundColor: 'primary.dark',
-                    },
                   },
+                  '& .MuiListItemIcon-root': {
+                    color: 'primary.contrastText',
+                  },
+                },
+              }}
+            >
+              <ListItemIcon>
+                <SecurityIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Security Policies"
+                primaryTypographyProps={{
+                  fontSize: '0.95rem',
+                  fontWeight: 'medium',
                 }}
-              >
-                <ListItemText 
-                  primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" fontSize="0.85rem">
-                        {project.name || project.project_name}
-                      </Typography>
-                      <Chip 
-                        label={getProjectTypeText(project.project_type)}
-                        size="small"
-                        color={getProjectTypeColor(project.project_type) as any}
-                        variant="outlined"
-                        sx={{ fontSize: '0.55rem', height: 18 }}
-                      />
-                    </Box>
-                  }
-                  secondary={project.description}
-                  primaryTypographyProps={{
-                    fontSize: '0.85rem',
-                    fontWeight: selectedProject?.id === project.id ? 'bold' : 'normal',
-                  }}
-                  secondaryTypographyProps={{
-                    fontSize: '0.75rem',
-                  }}
-                />
-                {project.id === currentWorkspaceProjectId && (
-                  <Chip 
-                    label="Workspace" 
-                    size="small" 
-                    color="secondary"
-                    sx={{ ml: 1, fontSize: '0.6rem' }}
-                  />
-                )}
-              </ListItemButton>
-            ))}
-          </Box>
-
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            Click any project to switch and return to appropriate dashboard
-          </Typography>
-        </Box>
+              />
+            </ListItemButton>
+          </ListItem>
+        </List>
       </Box>
     </Drawer>
   );

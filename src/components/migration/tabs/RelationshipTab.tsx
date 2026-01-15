@@ -34,9 +34,9 @@ import { useActivity } from '../ActivityProvider';
 
 
 export const RelationshipTab: React.FC = () => {
-  const { selectedObject } = useSelector((state: RootState) => state.migration);
-  const { selectedProject } = useSelector((state: RootState) => state.app);
-  const { user } = useSelector((state: RootState) => state.auth);
+   const { selectedObject } = useSelector((state: RootState) => state.migration);
+   const { selectedProject, selectedEnvironment } = useSelector((state: RootState) => state.app);
+   const { user } = useSelector((state: RootState) => state.auth);
   const { getCompletionStatus, getReadOnlyFlag } = useActivity();
   const isReadOnly = getReadOnlyFlag('Relationship') || getCompletionStatus('Mapping');
   const [selectedPrimaryKey, setSelectedPrimaryKey] = useState<string>('');
@@ -152,6 +152,21 @@ export const RelationshipTab: React.FC = () => {
   const uniqueFields = useMemo(() => {
     return metadataFields.filter(field => field.is_unique === 'true');
   }, [metadataFields]);
+
+  // Reset state and refetch data when object or environment changes
+  React.useEffect(() => {
+    if (selectedObject?.object_id) {
+      setSelectedPrimaryKey('');
+      setUniqueKeyFields(['']);
+      setForeignKeyRelations([{ fieldId: '', systemId: '', relatedObjectId: '', relatedFieldId: '', completed: false }]);
+      setLookupRelations([{ fieldId: '', lookupSystemId: '', lookupObjectId: '', lookupJoinFieldId: '', lookupFetchFieldIds: [], completed: false }]);
+      setSnackbar({ open: false, message: '', severity: 'info' });
+      initialPrimaryKeyRef.current = '';
+      lastSavedPrimaryKeyRef.current = '';
+      initialUniqueKeysRef.current = [];
+      hasInitializedRef.current = false;
+    }
+  }, [selectedObject?.object_id, selectedEnvironment?.id]);
 
   // Initialize with existing metadata values
   React.useEffect(() => {
@@ -716,8 +731,8 @@ export const RelationshipTab: React.FC = () => {
             onChange={(e) => setSelectedPrimaryKey(e.target.value)}
             label="Select Primary Key Field"
           >
-            {metadataFields.map((field) => (
-              <MenuItem key={field.name} value={field.name}>
+            {metadataFields.map((field, index) => (
+              <MenuItem key={field.name || field.field_id || `field-${index}`} value={field.name}>
                 {field.label} ({field.name}) - {field.datatype}
               </MenuItem>
             ))}
@@ -755,8 +770,8 @@ export const RelationshipTab: React.FC = () => {
                   label={`Select Unique Field ${index + 1}`}
                   disabled={!!selectedField && metadataFields.find(f => f.name === selectedField)?.is_unique === 'true'}
                 >
-                  {getAvailableUniqueFields(index).map((field) => (
-                    <MenuItem key={field.name} value={field.name}>
+                  {getAvailableUniqueFields(index).map((field, fieldIndex) => (
+                    <MenuItem key={field.name || field.field_id || `unique-field-${index}-${fieldIndex}`} value={field.name}>
                       {field.label} ({field.name}) - {field.datatype}
                     </MenuItem>
                   ))}
@@ -824,8 +839,8 @@ export const RelationshipTab: React.FC = () => {
                       label="Foreign Key Field"
                       disabled={relation.completed}
                     >
-                      {metadataFields.map((field) => (
-                        <MenuItem key={field.field_id} value={field.field_id}>
+                      {metadataFields.map((field, fieldIndex) => (
+                        <MenuItem key={field.field_id || field.name || `field-${fieldIndex}`} value={field.field_id}>
                           {field.label} ({field.name})
                         </MenuItem>
                       ))}
@@ -908,8 +923,8 @@ export const RelationshipTab: React.FC = () => {
                             </MenuItem>
                           ) : (
                             // For active relations, show current related object fields
-                            currentRelatedObjectMetadata.map((field) => (
-                              <MenuItem key={field.field_id} value={field.field_id}>
+                            currentRelatedObjectMetadata.map((field, fieldIndex) => (
+                              <MenuItem key={field.field_id || field.name || `related-field-${fieldIndex}`} value={field.field_id}>
                                 {field.label} ({field.name})
                               </MenuItem>
                             ))
@@ -993,8 +1008,8 @@ export const RelationshipTab: React.FC = () => {
                       label="Source Field"
                       disabled={relation.completed}
                     >
-                      {metadataFields.map((field) => (
-                        <MenuItem key={field.field_id} value={field.field_id}>
+                      {metadataFields.map((field, fieldIndex) => (
+                        <MenuItem key={field.field_id || field.name || `field-${fieldIndex}`} value={field.field_id}>
                           {field.label} ({field.name})
                         </MenuItem>
                       ))}
@@ -1077,8 +1092,8 @@ export const RelationshipTab: React.FC = () => {
                             </MenuItem>
                           ) : (
                             // For active relations, show current lookup object fields
-                            currentLookupObjectMetadata.map((field) => (
-                              <MenuItem key={field.field_id} value={field.field_id}>
+                            currentLookupObjectMetadata.map((field, fieldIndex) => (
+                              <MenuItem key={field.field_id || field.name || `lookup-field-${fieldIndex}`} value={field.field_id}>
                                 {field.label} ({field.name})
                               </MenuItem>
                             ))
@@ -1121,8 +1136,8 @@ export const RelationshipTab: React.FC = () => {
                             return selectedNames.join(', ');
                           }}
                         >
-                          {currentLookupObjectMetadata.map((field) => (
-                            <MenuItem key={field.field_id} value={field.field_id}>
+                          {currentLookupObjectMetadata.map((field, fieldIndex) => (
+                            <MenuItem key={field.field_id || field.name || `lookup-fetch-field-${fieldIndex}`} value={field.field_id}>
                               <Checkbox
                                 checked={relation.lookupFetchFieldIds.indexOf(field.field_id) > -1}
                                 size="small"

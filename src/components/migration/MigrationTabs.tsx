@@ -35,9 +35,10 @@ const tabLabels: Record<MigrationTab, string> = {
 
 interface MigrationTabsProps {
   objectId: string;
+  isRevealActive: boolean;
 }
 
-export const MigrationTabs: React.FC<MigrationTabsProps> = ({ objectId }) => {
+export const MigrationTabs: React.FC<MigrationTabsProps> = ({ objectId, isRevealActive }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { tabName } = useParams<{ tabName: MigrationTab }>();
@@ -53,49 +54,70 @@ export const MigrationTabs: React.FC<MigrationTabsProps> = ({ objectId }) => {
   const renderTabContent = () => {
     if (!selectedObject) return null;
 
-    switch (currentTab) {   
+    const tabKey = `${currentTab}-${isRevealActive}`;
+
+    switch (currentTab) {
       case 'summary':
-        return <SummaryTab />;
+        return <SummaryTab key={tabKey} />;
       case 'relationship':
-        return <RelationshipTab />;
+        return <RelationshipTab key={tabKey} />;
       case 'filter':
-        return <FilterTab />;
+        return <FilterTab key={tabKey} />;
       case 'metadata':
-        return <MetadataTab />;
+        return <MetadataTab key={tabKey} />;
       case 'cleanup':
-        return <CleanupTab />;
+        return <CleanupTab key={tabKey} />;
       case 'transform':
-        return <TransformTab />;
+        return <TransformTab key={tabKey} />;
       case 'mapping':
-        return <MappingTab />;
+        return <MappingTab key={tabKey} />;
       case 'validate':
-        return <ValidateTab />;
+        return <ValidateTab key={tabKey} />;
       case 'load':
-        return <LoadTab />;
+        return <LoadTab key={tabKey} />;
       case 'error':
-        return <ErrorTab />;
+        return <ErrorTab key={tabKey} />;
       case 'workflows':
-        return <WorkflowsTab />;
+        return <WorkflowsTab key={tabKey} />;
       default:
-        return <SummaryTab />;
+        return <SummaryTab key={tabKey} />;
     }
   };
 
   return (
-    <Paper elevation={2}>
+    <Paper elevation={2} sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Tabs
         value={currentTab}
         onChange={handleTabChange}
-        variant="scrollable"
+        variant="fullWidth"
         scrollButtons="auto"
         sx={{
           borderBottom: 1,
           borderColor: 'divider',
+          mb: 1,
           '& .MuiTab-root': {
-            fontWeight: 'bold',
-            fontSize: '0.8rem',
+            textTransform: 'none',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            minHeight: 48,
+            borderRadius: '8px 8px 0 0',
+            marginRight: 1,
             minWidth: 'auto',
             px: 2,
+            '&.Mui-selected': {
+              backgroundColor: '#0b378aff',
+              color: 'white',
+              fontWeight: 600,
+            },
+            '&:hover': {
+              backgroundColor: 'rgba(25, 118, 210, 0.08)',
+              '&.Mui-selected': {
+                backgroundColor: '#0b378aff',
+              },
+            },
+          },
+          '& .MuiTabs-indicator': {
+            display: 'none',
           },
         }}
       >
@@ -113,8 +135,10 @@ export const MigrationTabs: React.FC<MigrationTabsProps> = ({ objectId }) => {
         ))}
       </Tabs>
 
-      <Box sx={{ p: 3, minHeight: '400px' }}>
-        {renderTabContent()}
+      <Box sx={{ pt: 0.25, backgroundColor: '#0b378aff', flex: 1, borderRadius: '8px 8px 0 0' }}>
+        <Box sx={{ backgroundColor: 'white', flex: 1, p: 1 }}>
+          {renderTabContent()}
+        </Box>
       </Box>
     </Paper>
   );

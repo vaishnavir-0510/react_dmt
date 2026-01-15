@@ -204,8 +204,17 @@ export const metadataApi = createApi({
     }),
 
     // Get metadata for an object with pagination
-    getObjectMetadataPaginated: builder.query<PaginatedMetadataResponse, { objectId: string; page?: number; page_size?: number }>({
-      query: ({ objectId, page = 1, page_size = 5 }) => `/migration/v2/metadata/object/${objectId}?page=${page}&page_size=${page_size}`,
+    getObjectMetadataPaginated: builder.query<PaginatedMetadataResponse, { objectId: string; environmentId?: string; page?: number; page_size?: number }>({
+      query: ({ objectId, environmentId, page = 1, page_size = 5 }) => {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          page_size: page_size.toString(),
+        });
+        if (environmentId) {
+          params.append('environment', environmentId);
+        }
+        return `/migration/v2/metadata/object/${objectId}?${params.toString()}`;
+      },
       providesTags: ['Metadata'],
     }),
     

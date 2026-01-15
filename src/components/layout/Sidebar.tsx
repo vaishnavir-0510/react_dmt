@@ -12,9 +12,10 @@ import {
   Typography,
   Collapse,
   Chip,
-  Divider,
   CircularProgress,
   Badge,
+  Tooltip,
+  Avatar,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -23,8 +24,6 @@ import {
   ExpandLess,
   ExpandMore,
   Computer as SystemIcon,
-  Folder as ProjectIcon,
-  Cloud as EnvironmentIcon,
   Storage as ObjectsIcon,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
@@ -202,13 +201,12 @@ export const Sidebar: React.FC = () => {
 
   return (
     <Drawer
-      variant="persistent"
-      open={isSidebarOpen}
+      variant="permanent"
       sx={{
-        width: isSidebarOpen ? 280 : 0,
+        width: isSidebarOpen ? 280 : 60,
         flexShrink: 0,
         [`& .MuiDrawer-paper`]: {
-          width: 280,
+          width: isSidebarOpen ? 280 : 60,
           boxSizing: 'border-box',
           position: 'relative',
           height: 'calc(100vh - 64px)',
@@ -223,87 +221,64 @@ export const Sidebar: React.FC = () => {
     >
       <Toolbar />
       <Box sx={{ overflow: 'auto', height: '100%' }}>
-        
-        {/* Selected Project Info */}
-        {selectedProject && (
-          <Box sx={{ p: 2, backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <ProjectIcon fontSize="small" />
-              <Typography variant="subtitle2" fontWeight="bold">
-                ACTIVE PROJECT
-              </Typography>
-            </Box>
-            <Typography variant="body1" fontWeight="bold" gutterBottom>
-              {selectedProject.name}
-            </Typography>
-            {selectedProject.description && (
-              <Typography variant="caption" display="block">
-                {selectedProject.description}
-              </Typography>
-            )}
-            {selectedProject.environment && (
-              <Chip 
-                label={selectedProject.environment}
-                size="small"
-                color="secondary"
-                sx={{ mt: 1, color: 'white', fontSize: '0.6rem' }}
-              />
-            )}
-            <ListItemButton 
-              onClick={handleProjectClick}
-              sx={{ 
-                mt: 1, 
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                borderRadius: 1,
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.2)',
-                },
-              }}
-            >
-              <ListItemText 
-                primary="Change Project"
-                primaryTypographyProps={{
-                  fontSize: '0.8rem',
-                  fontWeight: 'medium',
-                }}
-              />
-            </ListItemButton>
-          </Box>
-        )}
-
-        <Divider />
 
         {/* Main Menu Items */}
         <List>
           {menuItems.map((item) => (
             <ListItem key={item.text} disablePadding>
-              <ListItemButton
-                selected={isActiveRoute(item.path)}
-                onClick={() => handleMenuClick(item.text.toLowerCase(), item.path)}
-                sx={{
-                  '&.Mui-selected': {
-                    backgroundColor: 'primary.light',
-                    color: 'primary.contrastText',
-                    '&:hover': {
-                      backgroundColor: 'primary.main',
+              {isSidebarOpen ? (
+                <ListItemButton
+                  selected={isActiveRoute(item.path)}
+                  onClick={() => handleMenuClick(item.text.toLowerCase(), item.path)}
+                  sx={{
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.light',
+                      color: 'primary.contrastText',
+                      '&:hover': {
+                        backgroundColor: 'primary.main',
+                      },
                     },
-                  },
-                }}
-              >
-                <ListItemIcon 
-                  sx={{ 
-                    color: isActiveRoute(item.path) ? 'primary.contrastText' : 'inherit' 
                   }}
                 >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.text} 
-                  primaryTypographyProps={{
-                    fontWeight: isActiveRoute(item.path) ? 'bold' : 'normal',
-                  }}
-                />
-              </ListItemButton>
+                  <ListItemIcon
+                    sx={{
+                      color: isActiveRoute(item.path) ? 'primary.contrastText' : 'inherit'
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      fontWeight: isActiveRoute(item.path) ? 'bold' : 'normal',
+                    }}
+                  />
+                </ListItemButton>
+              ) : (
+                <Tooltip title={item.text}>
+                  <ListItemButton
+                    selected={isActiveRoute(item.path)}
+                    onClick={() => handleMenuClick(item.text.toLowerCase(), item.path)}
+                    sx={{
+                      '&.Mui-selected': {
+                        backgroundColor: 'primary.light',
+                        color: 'primary.contrastText',
+                        '&:hover': {
+                          backgroundColor: 'primary.main',
+                        },
+                      },
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        color: isActiveRoute(item.path) ? 'primary.contrastText' : 'inherit'
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                  </ListItemButton>
+                </Tooltip>
+              )}
             </ListItem>
           ))}
         </List>
@@ -311,24 +286,8 @@ export const Sidebar: React.FC = () => {
         {/* Source Systems Section - Only show if we have source systems */}
         {selectedProject && sourceSystems.length > 0 && (
           <List sx={{ mt: 2 }}>
-            <ListItem disablePadding>
-              <ListItemButton disabled sx={{ cursor: 'default' }}>
-                <ListItemIcon>
-                  <SystemIcon />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Source Systems" 
-                  primaryTypographyProps={{
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                    color: 'text.primary',
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-            
             {sourceSystems.map((system) => (
-              <SourceSystemItem 
+              <SourceSystemItem
                 key={system.id}
                 system={system}
                 isOpen={!!sourceSystemsOpen[system.id]}
@@ -336,6 +295,7 @@ export const Sidebar: React.FC = () => {
                 onSystemSelect={handleSystemSelect}
                 isSelected={selectedSystem?.id === system.id}
                 selectedObjectId={selectedObject?.object_id}
+                isSidebarOpen={isSidebarOpen}
               />
             ))}
           </List>
@@ -344,155 +304,9 @@ export const Sidebar: React.FC = () => {
         {/* Show message if no source systems */}
         {selectedProject && !isLoadingSystems && sourceSystems.length === 0 && (
           <List sx={{ mt: 2 }}>
-            <ListItem disablePadding>
-              <ListItemButton disabled>
-                <ListItemIcon>
-                  <SystemIcon />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Source Systems" 
-                  secondary="No source systems found"
-                  primaryTypographyProps={{
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                  }}
-                  secondaryTypographyProps={{
-                    fontSize: '0.8rem',
-                    color: 'text.secondary',
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
           </List>
         )}
 
-        {/* Environment Dropdown - Only show if we have a selected project */}
-        {selectedProject && (
-          <List sx={{ mt: 1 }}>
-            <ListItem disablePadding>
-              <ListItemButton onClick={handleEnvironmentToggle}>
-                <ListItemIcon>
-                  <EnvironmentIcon />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Environments" 
-                  secondary={
-                    isLoadingEnvironments 
-                      ? "Loading..." 
-                      : selectedEnvironment?.name || `(${environments.length} environments)`
-                  }
-                  primaryTypographyProps={{
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                  }}
-                  secondaryTypographyProps={{
-                    fontSize: '0.8rem',
-                  }}
-                />
-                {isLoadingEnvironments ? (
-                  <CircularProgress size={16} />
-                ) : (
-                  environmentDropdownOpen ? <ExpandLess /> : <ExpandMore />
-                )}
-              </ListItemButton>
-            </ListItem>
-            
-            <Collapse in={environmentDropdownOpen} timeout="auto" unmountOnExit>
-              <List component="div" disablePadding>
-                {isLoadingEnvironments ? (
-                  <ListItem disablePadding>
-                    <ListItemButton sx={{ pl: 4 }} disabled>
-                      <CircularProgress size={16} sx={{ mr: 2 }} />
-                      <ListItemText 
-                        primary="Loading environments..."
-                        primaryTypographyProps={{
-                          fontSize: '0.85rem',
-                          color: 'text.secondary',
-                        }}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ) : environmentsError ? (
-                  <ListItem disablePadding>
-                    <ListItemButton sx={{ pl: 4 }} disabled>
-                      <ListItemText 
-                        primary="Failed to load environments"
-                        primaryTypographyProps={{
-                          fontSize: '0.85rem',
-                          color: 'error.main',
-                        }}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ) : environments.length === 0 ? (
-                  <ListItem disablePadding>
-                    <ListItemButton sx={{ pl: 4 }} disabled>
-                      <ListItemText 
-                        primary="No environments found"
-                        primaryTypographyProps={{
-                          fontSize: '0.85rem',
-                          color: 'text.secondary',
-                        }}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ) : (
-                  environments.map((environment) => (
-                    <ListItem key={environment.id} disablePadding>
-                      <ListItemButton
-                        selected={selectedEnvironment?.id === environment.id}
-                        onClick={() => handleEnvironmentSelect(environment)}
-                        sx={{
-                          pl: 4,
-                          '&.Mui-selected': {
-                            backgroundColor: 'action.selected',
-                            '&:hover': {
-                              backgroundColor: 'action.hover',
-                            },
-                          },
-                        }}
-                      >
-                        <ListItemText 
-                          primary={environment.name}
-                          secondary={environment.type}
-                          primaryTypographyProps={{
-                            fontSize: '0.85rem',
-                            fontWeight: selectedEnvironment?.id === environment.id ? 'bold' : 'normal',
-                          }}
-                          secondaryTypographyProps={{
-                            fontSize: '0.75rem',
-                          }}
-                        />
-                        <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
-                          <Chip 
-                            label={environment.type}
-                            size="small"
-                            color={
-                              environment.type === 'prod' ? 'error' :
-                              environment.type === 'dev' ? 'primary' :
-                              environment.type === 'qa' ? 'secondary' : 'default'
-                            }
-                            variant="outlined"
-                            sx={{ fontSize: '0.6rem' }}
-                          />
-                          {environment.is_prod && (
-                            <Chip 
-                              label="Prod"
-                              size="small"
-                              color="success"
-                              variant="filled"
-                              sx={{ fontSize: '0.6rem' }}
-                            />
-                          )}
-                        </Box>
-                      </ListItemButton>
-                    </ListItem>
-                  ))
-                )}
-              </List>
-            </Collapse>
-          </List>
-        )}
       </Box>
     </Drawer>
   );
@@ -506,6 +320,7 @@ interface SourceSystemItemProps {
   onSystemSelect: (system: System) => void;
   isSelected: boolean;
   selectedObjectId?: string;
+  isSidebarOpen: boolean;
 }
 
 const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
@@ -514,7 +329,8 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
   onToggle,
   onSystemSelect,
   isSelected,
-  selectedObjectId
+  selectedObjectId,
+  isSidebarOpen
 }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -527,7 +343,7 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
     error: objectsError,
     isFetching: isFetchingObjects
   } = useGetObjectsBySystemQuery(system.id, {
-    skip: !system.id,
+    skip: !system.id || !isOpen,
   });
 
   const handleSystemClick = () => {
@@ -588,7 +404,7 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
   return (
     <>
       <ListItem disablePadding>
-        <ListItemButton 
+        <ListItemButton
           onClick={handleSystemClick}
           selected={isSelected || hasSelectedObject}
           sx={{
@@ -601,9 +417,9 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
           }}
         >
           <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-            <Badge 
-              badgeContent={totalObjectsCount} 
-              color="primary" 
+            <Badge
+              badgeContent={totalObjectsCount}
+              color="primary"
               overlap="circular"
               sx={{
                 '& .MuiBadge-badge': {
@@ -616,26 +432,30 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
               <SystemIcon fontSize="small" />
             </Badge>
           </ListItemIcon>
-          <ListItemText 
-            primary={system.name}
-            secondary={`${completedObjectsCount}/${totalObjectsCount} completed`}
-            primaryTypographyProps={{
-              fontSize: '0.85rem',
-              fontWeight: (isSelected || hasSelectedObject) ? 'bold' : 'medium',
-            }}
-            secondaryTypographyProps={{
-              fontSize: '0.75rem',
-            }}
-          />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isLoadingObjects || isFetchingObjects ? (
-              <CircularProgress size={16} />
-            ) : (
-              <>
-                {isOpen ? <ExpandLess /> : <ExpandMore />}
-              </>
-            )}
-          </Box>
+          {isSidebarOpen && (
+            <ListItemText
+              primary={system.name}
+              secondary={`${completedObjectsCount}/${totalObjectsCount} completed`}
+              primaryTypographyProps={{
+                fontSize: '0.85rem',
+                fontWeight: (isSelected || hasSelectedObject) ? 'bold' : 'medium',
+              }}
+              secondaryTypographyProps={{
+                fontSize: '0.75rem',
+              }}
+            />
+          )}
+          {isSidebarOpen && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {isLoadingObjects || isFetchingObjects ? (
+                <CircularProgress size={16} />
+              ) : (
+                <>
+                  {isOpen ? <ExpandLess /> : <ExpandMore />}
+                </>
+              )}
+            </Box>
+          )}
         </ListItemButton>
       </ListItem>
       
@@ -643,85 +463,105 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
         <List component="div" disablePadding>
           {isLoadingObjects || isFetchingObjects ? (
             <ListItem disablePadding>
-              <ListItemButton sx={{ pl: 6 }} disabled>
+              <ListItemButton sx={{ pl: isSidebarOpen ? 6 : 1 }} disabled>
                 <CircularProgress size={16} sx={{ mr: 2 }} />
-                <ListItemText 
-                  primary="Loading objects..."
-                  primaryTypographyProps={{
-                    fontSize: '0.8rem',
-                    color: 'text.secondary',
-                  }}
-                />
+                {isSidebarOpen && (
+                  <ListItemText
+                    primary="Loading objects..."
+                    primaryTypographyProps={{
+                      fontSize: '0.8rem',
+                      color: 'text.secondary',
+                    }}
+                  />
+                )}
               </ListItemButton>
             </ListItem>
           ) : objectsError ? (
             <ListItem disablePadding>
-              <ListItemButton sx={{ pl: 6 }} disabled>
-                <ListItemText 
-                  primary="Failed to load objects"
-                  primaryTypographyProps={{
-                    fontSize: '0.8rem',
-                    color: 'error.main',
-                  }}
-                />
+              <ListItemButton sx={{ pl: isSidebarOpen ? 6 : 1 }} disabled>
+                {isSidebarOpen && (
+                  <ListItemText
+                    primary="Failed to load objects"
+                    primaryTypographyProps={{
+                      fontSize: '0.8rem',
+                      color: 'error.main',
+                    }}
+                  />
+                )}
               </ListItemButton>
             </ListItem>
           ) : objects.length === 0 ? (
             <ListItem disablePadding>
-              <ListItemButton sx={{ pl: 6 }} disabled>
-                <ListItemText 
-                  primary="No objects found"
-                  primaryTypographyProps={{
-                    fontSize: '0.8rem',
-                    color: 'text.secondary',
-                  }}
-                />
+              <ListItemButton sx={{ pl: isSidebarOpen ? 6 : 1 }} disabled>
+                {isSidebarOpen && (
+                  <ListItemText
+                    primary="No objects found"
+                    primaryTypographyProps={{
+                      fontSize: '0.8rem',
+                      color: 'text.secondary',
+                    }}
+                  />
+                )}
               </ListItemButton>
             </ListItem>
           ) : (
             objects.map((object) => {
-              const isObjectSelected = selectedObjectId === object.object_id || 
+              const isObjectSelected = selectedObjectId === object.object_id ||
                                     location.pathname.includes(`/migration/${object.object_id}`);
-              
-              return (
-                <ListItem key={object.object_id} disablePadding>
-                  <ListItemButton
-                    onClick={() => handleObjectClick(object)}
-                    selected={isObjectSelected}
-                    sx={{
-                      pl: 6,
+
+              const objectButton = (
+                <ListItemButton
+                  onClick={() => handleObjectClick(object)}
+                  selected={isObjectSelected}
+                  sx={{
+                    pl: isSidebarOpen ? 6 : 1,
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    },
+                    '&.Mui-selected': {
+                      backgroundColor: 'action.selected',
                       '&:hover': {
                         backgroundColor: 'action.hover',
                       },
-                      '&.Mui-selected': {
-                        backgroundColor: 'action.selected',
-                        '&:hover': {
-                          backgroundColor: 'action.hover',
-                        },
-                      },
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 32 }}>
-                      <ObjectsIcon 
-                        fontSize="small" 
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    {isSidebarOpen ? (
+                      <ObjectsIcon
+                        fontSize="small"
                         color={isObjectSelected ? "primary" : object.is_completed ? "success" : "action"}
                       />
-                    </ListItemIcon>
-                    <ListItemText 
+                    ) : (
+                      <Avatar
+                        sx={{
+                          width: 24,
+                          height: 24,
+                          bgcolor: isObjectSelected ? "primary.main" : object.is_completed ? "success.main" : "grey.400",
+                          fontSize: '0.8rem',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {object.name.charAt(0).toUpperCase()}
+                      </Avatar>
+                    )}
+                  </ListItemIcon>
+                  {isSidebarOpen && (
+                    <ListItemText
                       primary={object.name}
                       secondary={
                         <Box component="span" sx={{ display: 'block' }}>
-                          <Typography 
-                            component="span" 
-                            variant="caption" 
+                          <Typography
+                            component="span"
+                            variant="caption"
                             display="block"
                             sx={{ fontSize: '0.7rem' }}
                           >
                             Records: {object.records_count} | Fields: {object.field_count}
                           </Typography>
-                          <Typography 
-                            component="span" 
-                            variant="caption" 
+                          <Typography
+                            component="span"
+                            variant="caption"
                             display="block"
                             sx={{ fontSize: '0.7rem' }}
                           >
@@ -734,8 +574,10 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
                         fontWeight: isObjectSelected ? 'bold' : 'medium',
                       }}
                     />
+                  )}
+                  {isSidebarOpen && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-                      <Chip 
+                      <Chip
                         label={object.operation}
                         size="small"
                         color={object.operation === 'insert' ? 'success' : 'primary'}
@@ -743,7 +585,7 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
                         sx={{ fontSize: '0.55rem', height: 18 }}
                       />
                       {object.is_completed && (
-                        <Chip 
+                        <Chip
                           label="Completed"
                           size="small"
                           color="success"
@@ -752,7 +594,7 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
                         />
                       )}
                       {isObjectSelected && (
-                        <Chip 
+                        <Chip
                           label="Active"
                           size="small"
                           color="primary"
@@ -761,7 +603,19 @@ const SourceSystemItem: React.FC<SourceSystemItemProps> = React.memo(({
                         />
                       )}
                     </Box>
-                  </ListItemButton>
+                  )}
+                </ListItemButton>
+              );
+
+              return (
+                <ListItem key={object.object_id} disablePadding>
+                  {isSidebarOpen ? (
+                    objectButton
+                  ) : (
+                    <Tooltip title={object.name} placement="right">
+                      {objectButton}
+                    </Tooltip>
+                  )}
                 </ListItem>
               );
             })

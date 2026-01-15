@@ -44,6 +44,8 @@ import { lookupApi } from '../services/lookupApi';
 import { estimatorApi } from '../services/estimatorApi';
 import { dashboardApi } from '../services/dashboardApi';
 import { activityApi } from '../services/activityApi';
+import { securityPoliciesApi } from '../services/securityPoliciesApi';
+import { revealApi } from '../services/revealApi';
 
 export const store = configureStore({
   reducer: {
@@ -81,6 +83,8 @@ export const store = configureStore({
     [pipelineApi.reducerPath]: pipelineApi.reducer,
     [lookupApi.reducerPath]: lookupApi.reducer,[dashboardApi.reducerPath]: dashboardApi.reducer,
     [activityApi.reducerPath]: activityApi.reducer,
+    [securityPoliciesApi.reducerPath]: securityPoliciesApi.reducer,
+    [revealApi.reducerPath]: revealApi.reducer,
 
   },
   middleware: (getDefaultMiddleware) =>
@@ -120,6 +124,8 @@ export const store = configureStore({
       pipelineApi.middleware,
       lookupApi.middleware,dashboardApi.middleware,
       activityApi.middleware,
+       securityPoliciesApi.middleware,
+       revealApi.middleware,
 
     ),
 

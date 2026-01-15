@@ -53,12 +53,12 @@ export const ObjectEstimationTable: React.FC = () => {
   }
 
   return (
-    <Paper elevation={3} sx={{ p: 3 }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" component="h2" fontWeight="bold" gutterBottom>
+    <Paper elevation={3} sx={{ p: "10px" }}>
+      <Box sx={{ mb: "10px" }}>
+        <Typography variant="h5" component="h2" fontWeight="bold" gutterBottom sx={{ fontSize: "16px" }}>
           Object Load Estimation
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: "16px" }}>
           Detailed effort breakdown by object and activity
         </Typography>
       </Box>
@@ -129,48 +129,7 @@ export const ObjectEstimationTable: React.FC = () => {
         </Table>
       </TableContainer>
 
-      {/* Summary Cards */}
-      <Grid container spacing={2} sx={{ mt: 3 }}>
-        <Grid item xs={12} md={4}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Total Objects
-              </Typography>
-              <Typography variant="h4" color="primary" fontWeight="bold">
-                {summaryData.length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Average Effort
-              </Typography>
-              <Typography variant="h4" color="secondary" fontWeight="bold">
-                {summaryData.length > 0
-                  ? Math.round(summaryData.reduce((sum: number, obj: ProjectObjectEstimation) => sum + obj.total_efforts, 0) / summaryData.length)
-                  : 0
-                } hrs
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Total Project Effort
-              </Typography>
-              <Typography variant="h4" color="success" fontWeight="bold">
-                {summaryData.reduce((sum: number, obj: ProjectObjectEstimation) => sum + obj.total_efforts, 0)} hrs
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      
     </Paper>
   );
 };

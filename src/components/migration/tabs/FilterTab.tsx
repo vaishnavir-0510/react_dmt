@@ -37,6 +37,7 @@ import { FilterRowsSlideIn } from './FilterRowsSlideIn';
 
 export const FilterTab: React.FC = () => {
    const { selectedObject } = useSelector((state: RootState) => state.migration);
+   const { selectedEnvironment } = useSelector((state: RootState) => state.app);
    const { getReadOnlyFlag, getCompletionStatus, getActivityStatus } = useActivity();
    const [page, setPage] = useState(0);
    const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -47,6 +48,7 @@ export const FilterTab: React.FC = () => {
    const [filterRowsOpen, setFilterRowsOpen] = useState(false);
    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
    const [rowFilters, setRowFilters] = useState<{[key: string]: string}>({});
+   const [originalAllColumns, setOriginalAllColumns] = useState<string[]>([]);
 
   const isReadOnly = getReadOnlyFlag('Filter') || getCompletionStatus('Mapping');
   const isMappingCompleted = getCompletionStatus('Mapping');
@@ -60,30 +62,34 @@ export const FilterTab: React.FC = () => {
   } = useGetFilterDataQuery(
     {
       objectId: selectedObject?.object_id || '',
+      environmentId: selectedEnvironment?.id,
       page: page + 1,
       limit: rowsPerPage,
     },
-    { skip: !selectedObject?.object_id }
+    { skip: !selectedObject?.object_id || !selectedEnvironment?.id }
   );
 
-  // Refetch data when object changes
+  // Reset state and refetch data when object or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       setPage(0);
       setSearchTerm('');
       setHighlightedRow(null);
       setVisibleColumns(new Set()); // Reset visible columns
       setRowFilters({}); // Reset row filters
+      setOriginalAllColumns([]); // Reset original columns
+      setFilterColumnsOpen(false); // Reset slide-in states
+      setFilterRowsOpen(false);
       refetch();
     }
-  }, [selectedObject?.object_id, refetch]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, refetch]);
 
-  // Refresh activity status when tab is accessed
+  // Refresh activity status when tab is accessed or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       getActivityStatus(selectedObject.object_id);
     }
-  }, [selectedObject?.object_id, getActivityStatus]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, getActivityStatus]);
 
   // Auto-scroll to highlighted row
   useEffect(() => {
@@ -150,10 +156,25 @@ export const FilterTab: React.FC = () => {
   const baseRecords = filterData?.contents || [];
   const rowFilteredRecords = baseRecords.filter((record: FilterDataRecord) => {
     return Object.keys(rowFilters).every(column => {
-      const filterValue = rowFilters[column]?.toLowerCase();
+      const filterValue = rowFilters[column];
       if (!filterValue) return true;
-      const recordValue = record[column]?.toString().toLowerCase() || '';
-      return recordValue.includes(filterValue);
+      const recordValue = record[column]?.toString() || '';
+
+      // Check if it's a date range filter (start-end)
+      if (filterValue.includes('-')) {
+        const [start, end] = filterValue.split('-');
+        if (start && end) {
+          // Assume recordValue is a date string
+          return recordValue >= start && recordValue <= end;
+        } else if (start) {
+          return recordValue >= start;
+        } else if (end) {
+          return recordValue <= end;
+        }
+      }
+
+      // Default string includes check
+      return recordValue.toLowerCase().includes(filterValue.toLowerCase());
     });
   });
   const filteredRecords = rowFilteredRecords;
@@ -164,6 +185,13 @@ export const FilterTab: React.FC = () => {
       setVisibleColumns(new Set(allColumns));
     }
   }, [allColumns, visibleColumns.size]);
+
+  // Initialize original all columns when data loads
+  useEffect(() => {
+    if (allColumns.length > 0 && originalAllColumns.length === 0) {
+      setOriginalAllColumns(allColumns);
+    }
+  }, [allColumns, originalAllColumns.length]);
 
   // Highlight text in cells that match search term
   const highlightText = (text: string | number | null | undefined, searchTerm: string) => {
@@ -226,12 +254,12 @@ export const FilterTab: React.FC = () => {
   return (
     <Box>
       {/* Header Section */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2 }}>
         <Typography variant="h5" gutterBottom fontWeight="bold">
           Data Filtering - {selectedObject.object_name}
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
            <ToggleButton
              activity="Filter"
              disabled={getCompletionStatus('Mapping')}
@@ -242,7 +270,7 @@ export const FilterTab: React.FC = () => {
              variant="outlined"
              size="small"
              onClick={() => setFilterColumnsOpen(true)}
-             disabled={isReadOnly}
+             disabled={isReadOnly || !selectedObject?.object_id}
            >
              Filter Columns
            </Button>
@@ -270,7 +298,7 @@ export const FilterTab: React.FC = () => {
                  </InputAdornment>
                ),
              }}
-             sx={{ minWidth: '250px' }}
+             sx={{ minWidth: { xs: '200px', sm: '250px' } }}
            />
 
            {/* Refresh Button */}
@@ -335,9 +363,9 @@ export const FilterTab: React.FC = () => {
       )}
 
       {/* Data Table */}
-      <TableContainer component={Paper} elevation={2} ref={tableRef}>
-        <Table sx={{ minWidth: 650 }} aria-label="filter data table" size="small">
-          <TableHead>
+      <TableContainer component={Paper} elevation={2} ref={tableRef} sx={{ maxHeight: '60vh', overflow: 'auto' }}>
+          <Table sx={{ minWidth: 650, tableLayout: 'fixed' }} aria-label="filter data table" size="small">
+          <TableHead sx={{ position: 'sticky', top: 0, backgroundColor: 'background.paper', zIndex: 1 }}>
             <TableRow sx={{ backgroundColor: 'primary.light' }}>
               {columns.map((column) => (
                 <TableCell
@@ -373,10 +401,8 @@ export const FilterTab: React.FC = () => {
                   <TableCell
                     key={column}
                     sx={{
-                      maxWidth: '200px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      width: '200px',
+                      wordWrap: 'break-word'
                     }}
                     title={record[column]?.toString() || '-'}
                   >
@@ -387,24 +413,25 @@ export const FilterTab: React.FC = () => {
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
+        </TableContainer>
 
       {/* Pagination */}
       {filterData && (
-        <TablePagination
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          component="div"
-          count={filterData.total_records}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{ mt: 2 }}
-          labelRowsPerPage="Rows per page:"
-          labelDisplayedRows={({ from, to, count }) =>
-            `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`
-          }
-        />
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+          <TablePagination
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            component="div"
+            count={filterData.total_records}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            labelRowsPerPage="Rows per page:"
+            labelDisplayedRows={({ from, to, count }) =>
+              `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`
+            }
+          />
+        </Box>
       )}
 
       {/* Loading indicator for pagination */}
@@ -433,6 +460,8 @@ export const FilterTab: React.FC = () => {
         allColumns={allColumns}
         visibleColumns={visibleColumns}
         onVisibleColumnsChange={setVisibleColumns}
+        objectId={selectedObject?.object_id || ''}
+        refetch={refetch}
       />
 
       {/* Filter Rows Slide-in */}

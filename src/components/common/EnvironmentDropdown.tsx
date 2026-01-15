@@ -11,9 +11,17 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import { setSelectedEnvironment, clearSelectedEnvironment } from '../../store/slices/appSlice';
+import { clearMigrationData } from '../../store/slices/migrationSlice';
 import type { Environment } from '../../types';
 import { useGetEnvironmentsByProjectQuery } from '../../services/environmentApi';
 import { useUpdateEnvironmentWorkspaceMutation, useGetUserWorkspaceQuery } from '../../services/workspaceApi';
+import { filterApi } from '../../services/filterApi';
+import { metadataApi } from '../../services/metadataApi';
+import { mappingApi } from '../../services/mappingApi';
+import { validateApi } from '../../services/validateApi';
+import { loadApi } from '../../services/loadApi';
+import { transformApi } from '../../services/transformApi';
+import { cleanupApi } from '../../services/cleanupApi';
 
 export const EnvironmentDropdown: React.FC = () => {
   const dispatch = useDispatch();
@@ -23,6 +31,17 @@ export const EnvironmentDropdown: React.FC = () => {
   const { refetch: refetchWorkspace } = useGetUserWorkspaceQuery(undefined, {
     skip: !accessToken,
   });
+
+  // Function to invalidate all cached data when environment changes
+  const invalidateAllCaches = () => {
+    dispatch(filterApi.util.invalidateTags(['FilterData']));
+    dispatch(metadataApi.util.invalidateTags(['Metadata', 'MappedObject', 'Ontology']));
+    dispatch(mappingApi.util.invalidateTags(['Mapping']));
+    dispatch(validateApi.util.invalidateTags(['Validate']));
+    dispatch(loadApi.util.invalidateTags(['LoadIteration', 'SalesforceConnection']));
+    dispatch(transformApi.util.invalidateTags(['TransformData']));
+    dispatch(cleanupApi.util.invalidateTags(['Cleanup']));
+  };
 
   // Fetch environments for the currently selected project
   const {
@@ -72,12 +91,20 @@ export const EnvironmentDropdown: React.FC = () => {
 
     if (!environmentId) {
       dispatch(clearSelectedEnvironment());
+      // Clear migration data when environment is cleared
+      dispatch(clearMigrationData());
+      // Invalidate all cached data
+      invalidateAllCaches();
       return;
     }
 
     const environment = environments.find(env => env.id === environmentId);
     if (environment) {
       dispatch(setSelectedEnvironment(environment));
+      // Clear migration data when environment changes
+      dispatch(clearMigrationData());
+      // Invalidate all cached data from previous environment
+      invalidateAllCaches();
       updateEnvironmentWorkspace({ environment: environment.id })
         .unwrap()
         .then(() => refetchWorkspace())

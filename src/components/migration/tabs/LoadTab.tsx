@@ -41,30 +41,34 @@ import { useActivity } from '../ActivityProvider';
 
 export const LoadTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
-  const { selectedProject } = useSelector((state: RootState) => state.app);
+  const { selectedProject, selectedEnvironment } = useSelector((state: RootState) => state.app);
   const { getReadOnlyFlag, getActivityStatus } = useActivity();
 
   const objectId = selectedObject?.object_id;
   const projectId = selectedProject?.id;
 
   const { data: tableData = [], refetch, isLoading, error } = useGetLoadIterationQuery(
-    { objectId, projectId },
-    { skip: !objectId || !projectId }
+    { objectId, projectId, environmentId: selectedEnvironment?.id },
+    { skip: !objectId || !projectId || !selectedEnvironment?.id }
   );
 
-  // Refetch data when object changes
+  // Reset state and refetch data when object, project, or environment changes
   useEffect(() => {
-    if (objectId && projectId) {
+    if (objectId && projectId && selectedEnvironment?.id) {
+      setSelectedRow(null);
+      setSelectedIterationId(null);
+      setHasCreatedStatus(false);
+      setSnackbar({ open: false, message: "", color: "success" });
       refetch();
     }
-  }, [objectId, projectId, refetch]);
+  }, [objectId, projectId, selectedEnvironment?.id, refetch]);
 
-  // Refresh activity status when tab is accessed
+  // Refresh activity status when tab is accessed or environment changes
   useEffect(() => {
-    if (objectId) {
+    if (objectId && selectedEnvironment?.id) {
       getActivityStatus(objectId);
     }
-  }, [objectId, getActivityStatus]);
+  }, [objectId, selectedEnvironment?.id, getActivityStatus]);
 
   const [generateLoadFile, { isLoading: isGenerating }] = useGenerateLoadFileMutation();
   const [loadData, { isLoading: isLoadDataLoading }] = useLoadDataMutation();

@@ -33,19 +33,27 @@ export const Header: React.FC = () => {
 
   const handleSettingsClick = () => {
     if (currentView === 'application') {
-      // Navigate to account page FIRST, then open settings
-      navigate('/account');
+      // Open settings menu FIRST to set the state, then navigate
+      // This ensures state is set before route change triggers syncStateWithRoute
       dispatch(openSettingsMenu());
+      // Use setTimeout to ensure state update completes before navigation
+      setTimeout(() => {
+        navigate('/account');
+      }, 0);
     } else {
-      // Switch back to application view and navigate to appropriate dashboard
+      // Switch back to application view FIRST, then navigate
+      // This ensures state is set before route change triggers syncStateWithRoute
       dispatch(switchToApplicationView());
-      if (selectedProject?.project_type === 'backup') {
-        navigate('/backup/dashboard');
-      } else if (selectedProject?.project_type === 'translation') {
-        navigate('/translation/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      // Use setTimeout to ensure state update completes before navigation
+      setTimeout(() => {
+        if (selectedProject?.project_type === 'backup') {
+          navigate('/backup/dashboard');
+        } else if (selectedProject?.project_type === 'translation') {
+          navigate('/translation/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 0);
     }
   };
 

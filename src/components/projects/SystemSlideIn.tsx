@@ -12,6 +12,7 @@ import {
   Divider,
   IconButton,
   Grid,
+  CircularProgress,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -25,6 +26,7 @@ interface SystemSlideInProps {
   projectId: string;
   onClose: () => void;
   onSave: (systemData: any) => void;
+  isLoading?: boolean;
 }
 
 export const SystemSlideIn: React.FC<SystemSlideInProps> = ({
@@ -33,6 +35,7 @@ export const SystemSlideIn: React.FC<SystemSlideInProps> = ({
   projectId,
   onClose,
   onSave,
+  isLoading = false,
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -186,10 +189,11 @@ export const SystemSlideIn: React.FC<SystemSlideInProps> = ({
           <Button onClick={onClose} variant="outlined">
             Cancel
           </Button>
-          <Button 
-            onClick={handleSave} 
-            variant="contained" 
-            startIcon={<SaveIcon />}
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            startIcon={isLoading ? <CircularProgress size={20} /> : <SaveIcon />}
+            disabled={isLoading}
           >
             {system ? 'Update' : 'Create'} System
           </Button>

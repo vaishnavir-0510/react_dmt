@@ -14,9 +14,6 @@ import {
 } from '@mui/material';
 import {
   Backup as BackupIcon,
-  SettingsBackupRestore as RestoreIcon,
-  History as HistoryIcon,
-  Storage as StorageIcon,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store';
@@ -36,7 +33,7 @@ export const BackupSidebar: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const {isSidebarOpen, activeMenu, selectedProject } = useSelector((state: RootState) => state.app);
+  const { selectedProject } = useSelector((state: RootState) => state.app);
 
   const handleMenuClick = (menu: string, path: string) => {
     dispatch(setActiveMenu(menu));
@@ -49,9 +46,9 @@ export const BackupSidebar: React.FC = () => {
 
   return (
     <Drawer
-      variant="persistent" open={isSidebarOpen}
-       sx={{
-        width: isSidebarOpen ? 280 : 0,
+      variant="permanent"
+      sx={{
+        width: 280,
         flexShrink: 0,
         [`& .MuiDrawer-paper`]: {
           width: 280,
@@ -93,6 +90,9 @@ export const BackupSidebar: React.FC = () => {
                   '&.Mui-selected': {
                     backgroundColor: 'info.light',
                     color: 'info.contrastText',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    margin: '8px 12px',
                     '&:hover': {
                       backgroundColor: 'info.main',
                     },

@@ -91,7 +91,6 @@ export const projectEstimatorApi = createApi({
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['ProjectEstimator'],
     }),
     updateProjectEstimator: builder.mutation<ProjectEstimatorActivity, { id: string; data: Partial<UpdateProjectEstimatorRequest> }>({
       query: ({ id, data }) => ({
@@ -99,7 +98,6 @@ export const projectEstimatorApi = createApi({
         method: 'PUT',
         body: data,
       }),
-      invalidatesTags: ['ProjectEstimator'],
     }),
     bulkUpdateProjectEstimator: builder.mutation<ProjectEstimatorActivity[], { updates: Array<{ id: string; data: Partial<UpdateProjectEstimatorRequest> }> }>({
       query: ({ updates }) => ({

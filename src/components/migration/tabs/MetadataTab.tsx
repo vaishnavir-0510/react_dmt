@@ -148,10 +148,11 @@ export const MetadataTab: React.FC = () => {
     refetch: refetchSourceMetadata, // UPDATE: Get refetch function
   } = useGetObjectMetadataPaginatedQuery({
     objectId: selectedObject?.object_id || '',
+    environmentId: selectedEnvironment?.id,
     page: page + 1,
     page_size: rowsPerPage
   }, {
-    skip: !selectedObject?.object_id,
+    skip: !selectedObject?.object_id || !selectedEnvironment?.id,
   });
 
   // Get target metadata with refetch capability
@@ -162,10 +163,11 @@ export const MetadataTab: React.FC = () => {
     refetch: refetchTargetMetadata, // UPDATE: Get refetch function
   } = useGetObjectMetadataPaginatedQuery({
     objectId: mappedObject?.id || '',
+    environmentId: selectedEnvironment?.id,
     page: page + 1,
     page_size: rowsPerPage
   }, {
-    skip: !mappedObject?.id,
+    skip: !mappedObject?.id || !selectedEnvironment?.id,
   });
 
   // Get ontology mappings
@@ -185,19 +187,39 @@ export const MetadataTab: React.FC = () => {
   const sourceMetadata = sourceMetadataResponse?.records || [];
   const targetMetadata = targetMetadataResponse?.records || [];
 
-  // Refetch data when object or environment changes
+  // Reset state and refetch data when object or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
-      refetchSourceMetadata();
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
+      setActiveTab(0);
+      setSearchTerm('');
+      setPage(0);
+      setFilterField('all');
+      setSelectedField(null);
+      setDetailDialogOpen(false);
+      setRawDataDialogOpen(false);
+      setEditorOpen(false);
+      setEditingField(null);
+      setSelectedRowId(null);
+      setOntologyStatuses({});
+      setEditingOntology(null);
+      setEditingValue('');
+      setBulkAccepted(false);
+      // Only refetch if the query conditions are met
+      if (selectedObject?.object_id && selectedEnvironment?.id) {
+        refetchSourceMetadata();
+      }
+      if (mappedObject?.id && selectedEnvironment?.id) {
+        refetchTargetMetadata();
+      }
     }
-  }, [selectedObject?.object_id, refetchSourceMetadata]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, refetchSourceMetadata, refetchTargetMetadata, mappedObject?.id]);
 
-  // Refresh activity status when tab is accessed
+  // Refresh activity status when tab is accessed or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       getActivityStatus(selectedObject.object_id);
     }
-  }, [selectedObject?.object_id, getActivityStatus]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, getActivityStatus]);
 
   // Reset bulk accepted when object changes
   useEffect(() => {
@@ -354,15 +376,18 @@ export const MetadataTab: React.FC = () => {
     const parts = text.toString().split(new RegExp(`(${search})`, 'gi'));
     return (
       <span>
-        {parts.map((part, index) =>
-          part.toLowerCase() === search.toLowerCase() ? (
-            <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '0 2px' }}>
+        {parts.map((part, index) => {
+          // Skip empty parts to avoid duplicate keys
+          if (!part) return null;
+          
+          return part.toLowerCase() === search.toLowerCase() ? (
+            <mark key={`highlight-${index}-${part.slice(0, 10)}`} style={{ backgroundColor: '#ffeb3b', padding: '0 2px' }}>
               {part}
             </mark>
           ) : (
-            part
-          )
-        )}
+            <span key={`text-${index}-${part.slice(0, 10)}`}>{part}</span>
+          );
+        })}
       </span>
     );
   }, []);
@@ -505,12 +530,15 @@ export const MetadataTab: React.FC = () => {
         );
       }
 
-      const classes = value.split(',').map(e => e.trim());
+      const classes = value.split(',').map(e => e.trim()).filter(e => e); // Filter out empty strings
       const configMap = key === 'security_class' ? securityClassConfig : key === 'mask' ? maskConfig : permissionConfig;
 
       return (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {classes.map((className, index) => {
+            // Skip empty class names
+            if (!className) return null;
+            
             const config = configMap[className] || {
               color: 'grey.500',
               icon: (color: string) => <WarningAmberIcon fontSize="small" sx={{ color }} />,
@@ -518,7 +546,7 @@ export const MetadataTab: React.FC = () => {
             };
 
             return (
-              <Tooltip key={index} title={config.tooltip}>
+              <Tooltip key={`${key}-${className}-${index}`} title={config.tooltip}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   {config.icon(config.color)}
                   <Typography variant="body2" sx={{ color: config.color, fontWeight: 500 }}>
@@ -535,7 +563,14 @@ export const MetadataTab: React.FC = () => {
     const allKeys = React.useMemo(() => {
       if (metadata.length === 0) return [];
       const keys = new Set<string>();
-      metadata.forEach((field: any) => Object.keys(field).forEach(key => keys.add(key)));
+      metadata.forEach((field: any) => {
+        Object.keys(field).forEach(key => {
+          // Filter out empty keys to avoid duplicate key warnings
+          if (key && key.trim()) {
+            keys.add(key);
+          }
+        });
+      });
       return Array.from(keys).sort();
     }, [metadata]);
 
@@ -584,13 +619,28 @@ export const MetadataTab: React.FC = () => {
     }
 
     return (
-      <Paper elevation={1}>
-        <TableContainer sx={{ maxHeight: '60vh', overflowX: 'auto' }}>
-          <Table size="small">
+      <Paper elevation={1} sx={{ width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ 
+          maxHeight: '60vh', 
+          overflowY: 'auto', 
+          overflowX: 'hidden', 
+          width: '100%',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <Box sx={{ 
+            overflowX: 'auto', 
+            overflowY: 'hidden',
+            width: '100%',
+            flex: 1,
+            minWidth: 0 // Important: allows flex child to shrink below content size
+          }}>
+            <Table sx={{ tableLayout: 'auto', width: 'max-content', minWidth: '100%' }} size="small">
             <TableHead>
               <TableRow>
-                {displayedColumns.map(col => (
-                  <TableCell key={col.key} sx={{ fontWeight: 'bold', ...(col.width ? { width: col.width } : { minWidth: col.minWidth }) }}>
+                {displayedColumns.map((col, colIndex) => (
+                  <TableCell key={col.key || `col-${colIndex}`} sx={{ fontWeight: 'bold', ...(col.width ? { width: col.width } : { minWidth: col.minWidth }) }}>
                     {col.key === 'ai_suggested' ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span>{highlightText(col.label, searchTerm)}</span>
@@ -616,7 +666,7 @@ export const MetadataTab: React.FC = () => {
             <TableBody>
               {metadata.map((field: any, index: number) => (
                 <TableRow
-                  key={field.id || index}
+                  key={field.id || `field-${index}`}
                   onClick={() => {
                     if (!isReadOnly) {
                       setSelectedRowId(field.id);
@@ -633,10 +683,11 @@ export const MetadataTab: React.FC = () => {
                     '&:last-child td, &:last-child th': { border: 0 }
                   }}
                 >
-                  {displayedColumns.map(col => {
+                  {displayedColumns.map((col, colIdx) => {
+                    const cellKey = `${field.id || index}-${col.key || colIdx}`;
                     if (col.key === 'actions') {
                       return (
-                        <TableCell key={col.key}>
+                        <TableCell key={cellKey}>
                           <Box sx={{ display: 'flex', gap: 0.5 }}>
                             <Tooltip title="View all field details">
                               <IconButton
@@ -668,13 +719,13 @@ export const MetadataTab: React.FC = () => {
                       );
                     } else if (col.key === 'name') {
                       return (
-                        <TableCell key={col.key} sx={{ fontWeight: 'medium' }}>
+                        <TableCell key={cellKey} sx={{ fontWeight: 'medium' }}>
                           {field.name}
                         </TableCell>
                       );
                     } else if (col.key === 'datatype') {
                       return (
-                        <TableCell key={col.key}>
+                        <TableCell key={cellKey}>
                           <Chip
                             label={field.datatype}
                             size="small"
@@ -689,7 +740,7 @@ export const MetadataTab: React.FC = () => {
                       );
                     } else if (col.key === 'max_length') {
                       return (
-                        <TableCell key={col.key}>
+                        <TableCell key={cellKey}>
                           {field.max_length || '-'}
                         </TableCell>
                       );
@@ -697,11 +748,11 @@ export const MetadataTab: React.FC = () => {
                       const mapping = ontologyMappings?.find(m => m.original_field_name === field.name);
                       const status = ontologyStatuses[field.name] || (mapping?.ontology_term_status === 'true' ? 'accepted' : 'pending');
                       if (!mapping) {
-                        return <TableCell key={col.key}>-</TableCell>;
+                        return <TableCell key={cellKey}>-</TableCell>;
                       }
                       if (editingOntology === field.name) {
                         return (
-                          <TableCell key={col.key} onClick={(e) => e.stopPropagation()}>
+                          <TableCell key={cellKey} onClick={(e) => e.stopPropagation()}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <TextField
                                 size="small"
@@ -720,7 +771,7 @@ export const MetadataTab: React.FC = () => {
                         );
                       }
                       return (
-                        <TableCell key={col.key} onClick={(e) => e.stopPropagation()}>
+                        <TableCell key={cellKey} onClick={(e) => e.stopPropagation()}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {status === 'pending' && (
                               <Box sx={{ backgroundColor: '#fff9c4', padding: '4px 8px', borderRadius: 1, border: '1px dashed #fbc02d' }}>
@@ -762,12 +813,7 @@ export const MetadataTab: React.FC = () => {
                     } else {
                       const isSpecialField = ['security_class', 'mask', 'permission'].includes(col.key);
                       return (
-                        <TableCell key={col.key} sx={{
-                          maxWidth: 200,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
+                        <TableCell key={cellKey}>
                           {isSpecialField ? renderSpecialCell(col.key, field[col.key]?.toString() || '') : (field[col.key]?.toString() || '-')}
                         </TableCell>
                       );
@@ -776,8 +822,9 @@ export const MetadataTab: React.FC = () => {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
-        </TableContainer>
+           </Table>
+          </Box>
+        </Box>
 
         {/* Pagination */}
         <TablePagination
@@ -790,7 +837,8 @@ export const MetadataTab: React.FC = () => {
           onRowsPerPageChange={onRowsPerPageChange}
           sx={{
             borderTop: 1,
-            borderColor: 'divider'
+            borderColor: 'divider',
+            flexShrink: 0 // Prevent pagination from shrinking
           }}
         />
       </Paper>
@@ -809,7 +857,7 @@ export const MetadataTab: React.FC = () => {
   const error = sourceMetadataError || (activeTab === 1 && targetMetadataError);
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', overflowX: 'hidden' }}>
       {/* Success Snackbar */}
       <Snackbar
         open={saveSuccess}
@@ -818,26 +866,59 @@ export const MetadataTab: React.FC = () => {
         message="Field metadata updated successfully!"
       />
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-        <Box>
-          <Typography variant="h5" gutterBottom fontWeight="bold">
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', md: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', md: 'flex-start' }, 
+        mb: 2, 
+        gap: 2,
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      }}>
+        <Box sx={{ 
+          flex: '1 1 auto', 
+          minWidth: 0,
+          width: { xs: '100%', md: 'auto' },
+          maxWidth: '100%'
+        }}>
+          <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ wordBreak: 'break-word' }}>
             Metadata Management
           </Typography>
-          <Typography variant="body1" color="text.secondary" paragraph>
+          <Typography variant="body1" color="text.secondary" paragraph sx={{ wordBreak: 'break-word' }}>
             View and manage metadata for {selectedObject?.object_name}
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          <ToggleButton
-            activity="Metadata"
-            disabled={getCompletionStatus('Mapping')}
-          />
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 2, 
+          alignItems: 'center',
+          flexShrink: 0,
+          flexWrap: 'wrap',
+          width: { xs: '100%', md: 'auto' },
+          maxWidth: { xs: '100%', md: '400px' },
+          justifyContent: { xs: 'flex-start', md: 'flex-end' }
+        }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            gap: 1,
+            flexWrap: 'wrap',
+            maxWidth: '100%'
+          }}>
+            <ToggleButton
+              activity="Metadata"
+              disabled={getCompletionStatus('Mapping')}
+            />
+          </Box>
           <Tooltip title="View raw API data">
             <IconButton
               onClick={handleViewRawData}
               color="primary"
-              sx={{ border: 1, borderColor: 'primary.main' }}
+              sx={{ border: 1, borderColor: 'primary.main', flexShrink: 0 }}
             >
               <CodeIcon />
             </IconButton>
@@ -846,37 +927,44 @@ export const MetadataTab: React.FC = () => {
       </Box>
 
       {/* System Information Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={6}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="h6" gutterBottom color="primary">
-                Source System
-              </Typography>
-              <Typography variant="body2">
-                <strong>Object:</strong> {selectedObject.object_name}
-              </Typography>
-              <Typography variant="body2">
-                <strong>System:</strong> {selectedObject.system_name}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Type:</strong> Source
-              </Typography>
-              <Typography variant="body2">
-                <strong>Fields:</strong> {sourceMetadataResponse?.total_records || 0}
-              </Typography>
-              {isLoadingSourceMetadata && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                  <CircularProgress size={16} />
-                  <Typography variant="caption">Loading source metadata...</Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} md={6}>
-          <Card variant="outlined">
+      <Box sx={{ 
+        mb: 3, 
+        width: '100%', 
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      }}>
+        <Grid container spacing={2} sx={{ width: '100%', margin: 0 }}>
+          <Grid item xs={12} md={6} sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <Card variant="outlined" sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom color="primary">
+                  Source System
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Object:</strong> {selectedObject.object_name}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>System:</strong> {selectedObject.system_name}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Type:</strong> Source
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Fields:</strong> {sourceMetadataResponse?.total_records || 0}
+                </Typography>
+                {isLoadingSourceMetadata && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                    <CircularProgress size={16} />
+                    <Typography variant="caption">Loading source metadata...</Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} md={6} sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <Card variant="outlined" sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom color="secondary">
                 Target System
@@ -919,10 +1007,11 @@ export const MetadataTab: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-      </Grid>
+        </Grid>
+      </Box>
 
       {/* Tabs for Source/Target */}
-      <Paper elevation={1} sx={{ mb: 2 }}>
+      <Paper elevation={1} sx={{ mb: 2, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
@@ -930,6 +1019,30 @@ export const MetadataTab: React.FC = () => {
           sx={{
             borderBottom: 1,
             borderColor: 'divider',
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              minHeight: 48,
+              borderRadius: '8px 8px 0 0',
+              marginRight: 1,
+              minWidth: 'auto',
+              px: 2,
+              '&.Mui-selected': {
+                backgroundColor: '#0b378aff',
+                color: 'white',
+                fontWeight: 600,
+              },
+              '&:hover': {
+                backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                '&.Mui-selected': {
+                  backgroundColor: '#0b378aff',
+                },
+              },
+            },
+            '& .MuiTabs-indicator': {
+              display: 'none',
+            },
           }}
         >
           <Tab 
@@ -951,7 +1064,15 @@ export const MetadataTab: React.FC = () => {
       </Paper>
 
       {/* Search and Filter Controls */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        gap: 2, 
+        mb: 2, 
+        flexWrap: 'wrap',
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box'
+      }}>
         <TextField
           placeholder="Search column headers..."
           value={searchTerm}
@@ -966,7 +1087,7 @@ export const MetadataTab: React.FC = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ minWidth: 300, flexGrow: 1 }}
+          sx={{ minWidth: 300, flexGrow: 1, maxWidth: '100%' }}
           size="small"
         />
 

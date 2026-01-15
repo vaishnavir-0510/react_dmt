@@ -103,46 +103,19 @@ export const Dashboard: React.FC = () => {
   });
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 1 }}>
       <Typography variant="h4" fontWeight="bold" gutterBottom>
         Dashboard
       </Typography>
 
-      {/* Workspace Info */}
-      {workspace && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <Typography variant="h6">Current Workspace</Typography>
-          <Typography variant="body2">
-            <strong>User:</strong> {workspace.user}
-          </Typography>
-          <Typography variant="body2">
-            <strong>Project ID:</strong> {workspace.project}
-          </Typography>
-          {workspace.environment && (
-            <Typography variant="body2">
-              <strong>Environment:</strong> {workspace.environment}
-            </Typography>
-          )}
-        </Alert>
-      )}
-
-      {/* Project Info */}
-      {selectedProject && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          <Typography variant="h6">
-            Currently working on: <strong>{selectedProject.name}</strong>
-          </Typography>
-        </Alert>
-      )}
-
       {/* Project Details */}
       {selectedProject && (
-        <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Paper elevation={2} sx={{ p: 1, mb: 1 }}>
           <Typography variant="h5" gutterBottom>
             Project Details
           </Typography>
 
-          <Grid container spacing={3}>
+          <Grid container spacing={1}>
             <Grid item xs={12} md={3}>
               <PersonIcon /> {selectedProject.owner_name || 'N/A'}
             </Grid>
@@ -165,42 +138,10 @@ export const Dashboard: React.FC = () => {
         </Paper>
       )}
 
-      {/* Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6">Current Session</Typography>
-              <Typography>User: {user?.user}</Typography>
-              <Typography>User ID: {user?.user_id}</Typography>
-              {currentWorkspaceProjectId && (
-                <Typography>
-                  Workspace Project ID: {currentWorkspaceProjectId}
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6">Selected Configuration</Typography>
-              <Typography>
-                Project: {selectedProject?.name || 'None'}
-              </Typography>
-              <Typography>
-                Environment: {selectedEnvironment?.name || 'None'}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
       {/* -------------------------------
-         🔵 Overall Migration Progress
-      -------------------------------- */}
-      <Paper elevation={3} sx={{ p: 2, mb: 2 }}>
+          🔵 Overall Migration Progress
+       -------------------------------- */}
+      <Paper elevation={3} sx={{ p: 1, mb: 1 }}>
         <Typography fontWeight={600}>
           Overall Migration Progress
         </Typography>
@@ -217,16 +158,47 @@ export const Dashboard: React.FC = () => {
       {/* -------------------------------
          Tabs
       -------------------------------- */}
-      <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{
+          borderBottom: 1,
+          borderColor: 'divider',
+          '& .MuiTab-root': {
+            textTransform: 'none',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            minHeight: 48,
+            borderRadius: '8px 8px 0 0',
+            marginRight: 1,
+            minWidth: 'auto',
+            px: 2,
+            '&.Mui-selected': {
+              backgroundColor: '#0b378aff',
+              color: 'white',
+              fontWeight: 600,
+            },
+            '&:hover': {
+              backgroundColor: 'rgba(25, 118, 210, 0.08)',
+              '&.Mui-selected': {
+                backgroundColor: '#0b378aff',
+              },
+            },
+          },
+          '& .MuiTabs-indicator': {
+            display: 'none',
+          },
+        }}
+      >
         <Tab label="Migration Process" />
         <Tab label="Data Load Progress" />
       </Tabs>
 
       {/* -------------------------------
-         TAB 1: Migration Process
-      -------------------------------- */}
+          TAB 1: Migration Process
+       -------------------------------- */}
       {activeTab === 0 && (
-        <Paper elevation={3} sx={{ mt: 3, p: 2, overflowX: 'auto' }}>
+        <Paper elevation={3} sx={{ mt: 1, p: 1, overflowX: 'auto' }}>
           {(isLoading || isFetching) && (
             <Typography>Loading migration status...</Typography>
           )}
@@ -235,11 +207,11 @@ export const Dashboard: React.FC = () => {
             <table style={{ borderCollapse: 'collapse', width: '100%' }}>
               <thead>
                 <tr>
-                  <th style={{ padding: 12, textAlign: 'left' }}>
+                  <th style={{ padding: 8, textAlign: 'left' }}>
                     Object Name
                   </th>
                   {activities.map((activity) => (
-                    <th key={activity} style={{ padding: 12 }}>
+                    <th key={activity} style={{ padding: 8 }}>
                       {activity}
                     </th>
                   ))}
@@ -249,7 +221,7 @@ export const Dashboard: React.FC = () => {
               <tbody>
                 {Object.keys(groupedByObject).map((objectName) => (
                   <tr key={objectName}>
-                    <td style={{ padding: 12, fontWeight: 600 }}>
+                    <td style={{ padding: 8, fontWeight: 600 }}>
                       {objectName}
                     </td>
 
@@ -294,12 +266,12 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* -------------------------------
-         TAB 2: Data Load Progress
-      -------------------------------- */}
+          TAB 2: Data Load Progress
+       -------------------------------- */}
       {activeTab === 1 && (
-        <Paper elevation={3} sx={{ mt: 3, p: 3 }}>
+        <Paper elevation={3} sx={{ mt: 1, p: 1 }}>
           {dataLoadProgress.map((row) => (
-            <Box key={row.objectName} sx={{ mb: 3 }}>
+            <Box key={row.objectName} sx={{ mb: 1 }}>
               <Typography fontWeight={600}>
                 {row.objectName}
               </Typography>

@@ -1,5 +1,8 @@
 export const updateLastActivity = () => {
-  localStorage.setItem('lastActivity', Date.now().toString());
+  const timestamp = Date.now().toString();
+  localStorage.setItem('lastActivity', timestamp);
+  // Trigger a custom event for same-tab listeners (storage event only fires cross-tab)
+  window.dispatchEvent(new CustomEvent('activityUpdated', { detail: timestamp }));
 };
 
 export const getLastActivity = (): number => {
@@ -23,8 +26,16 @@ export const setupActivityListeners = (): (() => void) => {
     'click'
   ];
   
+  // Throttle activity updates to avoid excessive localStorage writes
+  let lastUpdateTime = 0;
+  const throttleMs = 1000; // Update at most once per second
+  
   const updateActivity = () => {
-    updateLastActivity();
+    const now = Date.now();
+    if (now - lastUpdateTime >= throttleMs) {
+      updateLastActivity();
+      lastUpdateTime = now;
+    }
   };
 
   events.forEach(event => {

@@ -53,6 +53,9 @@ export const FilterRowsSlideIn: React.FC<FilterRowsSlideInProps> = ({
   const [expandedPanel, setExpandedPanel] = useState<FilterType | null>(null);
   const [localFilters, setLocalFilters] = useState<{[key: string]: string}>({});
   const [selectedDateField, setSelectedDateField] = useState<string>('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [dateError, setDateError] = useState('');
 
   // Fetch metadata for the object
   const {
@@ -68,8 +71,21 @@ export const FilterRowsSlideIn: React.FC<FilterRowsSlideInProps> = ({
   useEffect(() => {
     if (open) {
       setLocalFilters({ ...rowFilters });
+      // Reset date fields
+      setStartDate('');
+      setEndDate('');
+      setDateError('');
     }
   }, [open, rowFilters]);
+
+  // Validate date range
+  useEffect(() => {
+    if (startDate && endDate && startDate > endDate) {
+      setDateError('Start date cannot be after end date');
+    } else {
+      setDateError('');
+    }
+  }, [startDate, endDate]);
 
   const handleAccordionChange = (panel: FilterType) => (event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpandedPanel(isExpanded ? panel : null);
@@ -83,7 +99,11 @@ export const FilterRowsSlideIn: React.FC<FilterRowsSlideInProps> = ({
   };
 
   const handleApplyFilters = () => {
-    onRowFiltersChange(localFilters);
+    const filters = { ...localFilters };
+    if (selectedDateField && (startDate || endDate)) {
+      filters[selectedDateField] = `${startDate}-${endDate}`;
+    }
+    onRowFiltersChange(filters);
     onClose();
   };
 
@@ -284,8 +304,8 @@ export const FilterRowsSlideIn: React.FC<FilterRowsSlideInProps> = ({
                               <MenuItem value="">
                                 <em>Select a date field</em>
                               </MenuItem>
-                              {dateFields.map((field) => (
-                                <MenuItem key={field.name} value={field.name}>
+                              {dateFields.map((field, index) => (
+                                <MenuItem key={field.name || field.field_id || `date-field-${index}`} value={field.name}>
                                   {field.name}
                                 </MenuItem>
                               ))}
@@ -293,21 +313,42 @@ export const FilterRowsSlideIn: React.FC<FilterRowsSlideInProps> = ({
                           </FormControl>
                         </Grid>
                         {selectedDateField && (
-                          <Grid item xs={12}>
-                            <TextField
-                              fullWidth
-                              label={`Filter ${selectedDateField}`}
-                              value={localFilters[selectedDateField] || ''}
-                              onChange={(e) => handleFilterChange(selectedDateField, e.target.value)}
-                              placeholder={`Enter date value to filter...`}
-                              size="small"
-                              sx={{
-                                '& .MuiOutlinedInput-root': {
-                                  backgroundColor: 'white',
-                                }
-                              }}
-                            />
-                          </Grid>
+                          <>
+                            <Grid item xs={12} sm={6}>
+                              <TextField
+                                fullWidth
+                                label="Start Date"
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                size="small"
+                                InputLabelProps={{ shrink: true }}
+                                sx={{
+                                  '& .MuiOutlinedInput-root': {
+                                    backgroundColor: 'white',
+                                  }
+                                }}
+                              />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                              <TextField
+                                fullWidth
+                                label="End Date"
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                size="small"
+                                error={!!dateError}
+                                helperText={dateError}
+                                InputLabelProps={{ shrink: true }}
+                                sx={{
+                                  '& .MuiOutlinedInput-root': {
+                                    backgroundColor: 'white',
+                                  }
+                                }}
+                              />
+                            </Grid>
+                          </>
                         )}
                       </Grid>
                     ) : (

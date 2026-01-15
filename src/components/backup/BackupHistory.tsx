@@ -185,8 +185,8 @@ const BackupHistory: React.FC = () => {
           </TableHead>
           <TableBody>
             {historyData && historyData.length > 0 ? (
-              historyData.map((backup: any) => (
-                <React.Fragment key={backup.id || backup.backup_id}>
+              historyData.map((backup: any, index: number) => (
+                <React.Fragment key={backup.id || backup.backup_id || `backup-${index}`}>
                   <TableRow hover>
                     {historyData?.some((b: any) => hasBackupDetails(b)) && (
                       <TableCell>
@@ -322,8 +322,8 @@ const BackupHistory: React.FC = () => {
                                   <Typography variant="caption" color="text.secondary">
                                     Backup Files
                                   </Typography>
-                                  {backup.backup_details.map((detail: any, index: number) => (
-                                    <Box key={index} sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                                  {backup.backup_details.map((detail: any, detailIndex: number) => (
+                                    <Box key={detail.filename || detail.version || `detail-${detailIndex}`} sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
                                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <Box>
                                           <Typography variant="body2">

@@ -1,17 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Modal,
+  Drawer,
   Box,
   Typography,
-  Paper,
   IconButton,
   Divider,
   Button,
   FormControlLabel,
   Checkbox,
   FormGroup,
+  CircularProgress,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
+import { useRemoveColumnsMutation } from '../../../services/filterApi';
 
 interface FilterColumnsSlideInProps {
   open: boolean;
@@ -19,6 +22,8 @@ interface FilterColumnsSlideInProps {
   allColumns: string[];
   visibleColumns: Set<string>;
   onVisibleColumnsChange: (columns: Set<string>) => void;
+  objectId: string;
+  refetch: () => void;
 }
 
 export const FilterColumnsSlideIn: React.FC<FilterColumnsSlideInProps> = ({
@@ -27,60 +32,123 @@ export const FilterColumnsSlideIn: React.FC<FilterColumnsSlideInProps> = ({
   allColumns,
   visibleColumns,
   onVisibleColumnsChange,
+  objectId,
+  refetch,
 }) => {
+  const [localVisibleColumns, setLocalVisibleColumns] = useState<Set<string>>(new Set());
+  const [isSaving, setIsSaving] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  const [removeColumns] = useRemoveColumnsMutation();
+
+  useEffect(() => {
+    if (open) {
+      refetch();
+      setLocalVisibleColumns(new Set(visibleColumns));
+      setIsSaving(false);
+      setSnackbar({ open: false, message: '', severity: 'success' });
+    }
+  }, [open, visibleColumns, refetch]);
+
   const handleColumnToggle = (column: string) => {
-    const newVisible = new Set(visibleColumns);
+    const newVisible = new Set(localVisibleColumns);
     if (newVisible.has(column)) {
       newVisible.delete(column);
     } else {
       newVisible.add(column);
     }
-    onVisibleColumnsChange(newVisible);
+    setLocalVisibleColumns(newVisible);
   };
 
   const handleSelectAll = () => {
-    onVisibleColumnsChange(new Set(allColumns));
+    setLocalVisibleColumns(new Set(allColumns));
   };
 
   const handleDeselectAll = () => {
-    onVisibleColumnsChange(new Set());
+    setLocalVisibleColumns(new Set());
   };
 
-  const modalWidth = 400;
+  const handleSave = async () => {
+    // First update the visibility
+    onVisibleColumnsChange(localVisibleColumns);
+    // Then call API to persist
+    setIsSaving(true);
+    try {
+      console.log('objectId type:', typeof objectId, 'value:', JSON.stringify(objectId));
+      if (!objectId || objectId.trim() === '') {
+        console.error('objectId is missing or empty');
+        setSnackbar({ open: true, message: 'Object ID is missing. Please select an object first.', severity: 'error' });
+        setIsSaving(false);
+        return;
+      }
+
+      const columnsToRemove = allColumns.filter(col => !localVisibleColumns.has(col));
+      const payload = {
+        object_id: objectId,
+        columns_to_remove: columnsToRemove,
+        for_migrate: false,
+      };
+      console.log('objectId:', objectId);
+      console.log('API Payload:', payload);
+      await removeColumns(payload).unwrap();
+      setSnackbar({ open: true, message: 'Columns updated successfully', severity: 'success' });
+      // Close after showing message
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to update columns', severity: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    onClose();
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  const drawerWidth = 400;
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      sx={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'flex-end',
-        zIndex: (theme) => theme.zIndex.modal,
-      }}
-    >
-      <Paper
+    <>
+      <Drawer
+        anchor="right"
+        open={open}
+        onClose={onClose}
         sx={{
-          width: modalWidth,
-          height: '100vh',
-          margin: 0,
-          borderRadius: 0,
-          overflow: 'auto',
-          boxShadow: 24,
+          zIndex: (theme) => theme.zIndex.drawer + 3,
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+            height: '100vh',
+            top: 0,
+            zIndex: (theme) => theme.zIndex.drawer + 3,
+          },
+        }}
+        BackdropProps={{
+          sx: {
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            zIndex: (theme) => theme.zIndex.drawer + 2,
+          }
         }}
       >
         <Box sx={{
           p: 3,
-          height: '100%',
           display: 'flex',
           flexDirection: 'column',
+          height: '100vh',
+          overflow: 'auto'
         }}>
           {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Typography variant="h5" component="h2" fontWeight="bold">
               Filter Columns
             </Typography>
-            <IconButton onClick={onClose}>
+            <IconButton onClick={onClose} disabled={isSaving}>
               <CloseIcon />
             </IconButton>
           </Box>
@@ -94,6 +162,7 @@ export const FilterColumnsSlideIn: React.FC<FilterColumnsSlideInProps> = ({
               variant="outlined"
               size="small"
               onClick={handleSelectAll}
+              disabled={isSaving}
             >
               Select All
             </Button>
@@ -102,6 +171,7 @@ export const FilterColumnsSlideIn: React.FC<FilterColumnsSlideInProps> = ({
               variant="outlined"
               size="small"
               onClick={handleDeselectAll}
+              disabled={isSaving}
             >
               Deselect All
             </Button>
@@ -115,8 +185,9 @@ export const FilterColumnsSlideIn: React.FC<FilterColumnsSlideInProps> = ({
                   key={column}
                   control={
                     <Checkbox
-                      checked={visibleColumns.has(column)}
+                      checked={localVisibleColumns.has(column)}
                       onChange={() => handleColumnToggle(column)}
+                      disabled={isSaving}
                     />
                   }
                   label={column}
@@ -130,13 +201,33 @@ export const FilterColumnsSlideIn: React.FC<FilterColumnsSlideInProps> = ({
             <Button
               fullWidth
               variant="outlined"
-              onClick={onClose}
+              onClick={handleCancel}
+              disabled={isSaving}
             >
-              Close
+              Cancel
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleSave}
+              disabled={isSaving || !objectId || objectId.trim() === ''}
+              startIcon={isSaving ? <CircularProgress size={20} /> : undefined}
+            >
+              {isSaving ? 'Saving...' : 'Save'}
             </Button>
           </Box>
         </Box>
-      </Paper>
-    </Modal>
+      </Drawer>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </>
   );
 };

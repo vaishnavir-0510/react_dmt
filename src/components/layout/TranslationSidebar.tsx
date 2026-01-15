@@ -17,8 +17,6 @@ import {
   Language as LanguageIcon,
   LibraryBooks as LibraryIcon,
   Timeline as TimelineIcon,
-  Dashboard as DashboardIcon,
-  Menu as MenuIcon,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store';
@@ -62,7 +60,7 @@ export const TranslationSidebar: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isSidebarOpen ,activeMenu, selectedProject } = useSelector((state: RootState) => state.app);
+  const { selectedProject } = useSelector((state: RootState) => state.app);
 
   const handleMenuClick = (menu: string, path: string) => {
     dispatch(setActiveMenu(menu));
@@ -75,10 +73,9 @@ export const TranslationSidebar: React.FC = () => {
 
   return (
     <Drawer
-      variant="persistent"
-        open={isSidebarOpen}
+      variant="permanent"
       sx={{
-        width: isSidebarOpen ? 280 : 0,
+        width: 280,
         flexShrink: 0,
         [`& .MuiDrawer-paper`]: {
           width: 280,
@@ -120,6 +117,9 @@ export const TranslationSidebar: React.FC = () => {
                   '&.Mui-selected': {
                     backgroundColor: 'warning.light',
                     color: 'warning.contrastText',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    margin: '8px 12px',
                     '&:hover': {
                       backgroundColor: 'warning.main',
                     },

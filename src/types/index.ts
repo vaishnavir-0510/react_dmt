@@ -20,6 +20,20 @@ export interface LoginCredentials {
   domain_name: string;
 }
 
+export interface RegisterCredentials {
+  username: string;
+  password: string;
+  email: string;
+  domain_name: string;
+  first_name?: string;
+  last_name?: string;
+}
+
+export interface ForgotPasswordCredentials {
+  email: string;
+  domain_name: string;
+}
+
 export interface Project {
   id: string;
   name: string;

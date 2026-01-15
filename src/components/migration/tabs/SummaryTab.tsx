@@ -9,8 +9,6 @@ import {
   Alert,
   Grid,
   LinearProgress,
-  FormControlLabel,
-  Switch,
   FormControl,
   InputLabel,
   Select,
@@ -23,14 +21,11 @@ import {
   Upload as UploadIcon,
   Refresh as RefreshIcon,
   CheckCircle as CheckCircleIcon,
-  Info as InfoIcon,
   TrendingUp as TrendingUpIcon,
   Storage as DatabaseIcon,
   TableChart as TableIcon,
-  ExpandMore as ChevronDownIcon,
   Error as AlertCircleIcon,
-  ToggleOn as ToggleOnIcon,
-  ToggleOff as ToggleOffIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import {
@@ -50,15 +45,17 @@ import {
 } from '../../../services/odfFileApi';
 import { useGetSystemsByProjectQuery } from '../../../services/systemsApi';
 import ImportODFFileSlideIn from '../../odf/ImportODFFileSlideIn';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../../store';
 import { ToggleButton } from '../ToggleButton';
 import { useActivity } from '../ActivityProvider';
+import { odfFileApi } from '../../../services/odfFileApi';
 
 const POLLING_INTERVAL = 2000;
 const MAX_POLLING_ATTEMPTS = 30;
 
 const SummaryTab: React.FC = () => {
+  const dispatch = useDispatch();
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<
@@ -91,7 +88,8 @@ const SummaryTab: React.FC = () => {
   } = useGetODFFileQuery(
     {
       id: selectedObject?.object_id || '',
-      objectId: selectedObject?.object_id || ''
+      objectId: selectedObject?.object_id || '',
+      environment: selectedEnvironment?.id || '' // Add environment to cache key
     },
     {
       skip: !selectedObject?.object_id
@@ -142,6 +140,7 @@ const SummaryTab: React.FC = () => {
   const [dateDistributionData, setDateDistributionData] = useState<any>(null);
   const [picklistChartData, setPicklistChartData] = useState<any>(null);
   const [toggleState, setToggleState] = useState<boolean>(false);
+
 
   // Load completion and chart data when odfFile is available
   useEffect(() => {
@@ -194,14 +193,15 @@ const SummaryTab: React.FC = () => {
 
   // Effect to refresh all data when environment changes
   useEffect(() => {
-    if (selectedObject?.object_id && selectedEnvironment?.id && odfFile) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       // Reset refs to allow data refresh
       hasRefreshedData.current = false;
       hasStartedPolling.current = false;
 
-      // Load all data
-      loadCompletionData();
-      loadChartData();
+      // Note: Since query params include environment, RTK Query will automatically fetch for the new environment
+      // No manual refetch needed as the query subscription changes
+
+      // Note: loadCompletionData and loadChartData will be called by the separate useEffect when odfFile is available
 
       // Refresh entity mapped data if needed
       if (selectedProject?.id) {
@@ -214,7 +214,7 @@ const SummaryTab: React.FC = () => {
         });
       }
     }
-  }, [selectedEnvironment?.id, selectedObject?.object_id, selectedProject?.id]);
+  }, [selectedEnvironment?.id, selectedObject?.object_id, selectedProject?.id, refetchODFFile, dispatch]);
 
   // Refresh activity status when tab is accessed
   useEffect(() => {
@@ -222,6 +222,8 @@ const SummaryTab: React.FC = () => {
       getActivityStatus(selectedObject.object_id);
     }
   }, [selectedObject?.object_id, getActivityStatus]);
+
+
 
 
   // Load chart data
@@ -253,7 +255,7 @@ const SummaryTab: React.FC = () => {
 
   // Load completion data
   const loadCompletionData = async () => {
-    if (!selectedObject?.object_id) return;
+    if (!selectedObject?.object_id || !odfFile) return;
 
     try {
       const [completionResult, densityResult, qualityResult] = await Promise.allSettled([
@@ -263,7 +265,7 @@ const SummaryTab: React.FC = () => {
       ]);
 
       if (completionResult.status === 'fulfilled') {
-        setCompletionData(completionResult.value);
+        setCompletionData(Array.isArray(completionResult.value) ? completionResult.value : []);
       }
 
       if (densityResult.status === 'fulfilled') {
@@ -484,6 +486,7 @@ const SummaryTab: React.FC = () => {
     setIsImportDialogOpen(true);
   };
 
+
   // UI Components using Material-UI
   const InfoField = ({ label, value }: { label: string; value: string }) => (
     <Box sx={{ mb: 3 }}>
@@ -590,8 +593,6 @@ const SummaryTab: React.FC = () => {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
         p: 3
       }}
     >
@@ -602,15 +603,6 @@ const SummaryTab: React.FC = () => {
             Source Data Summary
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <IconButton
-              onClick={() => setToggleState(!toggleState)}
-              color="primary"
-              sx={{ mr: 1 }}
-              title={toggleState ? "Toggle Off" : "Toggle On"}
-            >
-              {toggleState ? <ToggleOnIcon /> : <ToggleOffIcon />}
-            </IconButton>
-
             {/* Extract Activity Toggle */}
             <ToggleButton
               activity="Extract"
@@ -795,8 +787,8 @@ const SummaryTab: React.FC = () => {
           <Stack spacing={3}>
             {/* Status Chart */}
             <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <CardContent sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TrendingUpIcon sx={{ color: 'primary.main' }} />
                     <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
@@ -808,12 +800,12 @@ const SummaryTab: React.FC = () => {
                   </IconButton>
                 </Box>
 
-                {completionData.length > 0 ? (
-                  <Box sx={{ maxHeight: 400, overflow: 'auto', pr: 1 }}>
-                    <Stack spacing={2}>
+                {Array.isArray(completionData) && completionData.length > 0 ? (
+                  <Box sx={{ maxHeight: 350, overflow: 'auto', pr: 1 }}>
+                    <Stack spacing={1}>
                       {completionData.map((activity, idx) => (
                         <Box key={idx}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                             <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                               {activity.activity}
                             </Typography>
@@ -828,12 +820,12 @@ const SummaryTab: React.FC = () => {
                             variant="determinate"
                             value={activity.completion}
                             sx={{
-                              height: 10,
-                              borderRadius: 5,
+                              height: 8,
+                              borderRadius: 4,
                               bgcolor: '#f3f4f6',
                               '& .MuiLinearProgress-bar': {
                                 bgcolor: activity.completion === 100 ? '#10b981' : '#6b7280',
-                                borderRadius: 5,
+                                borderRadius: 4,
                               }
                             }}
                           />
@@ -842,7 +834,7 @@ const SummaryTab: React.FC = () => {
                     </Stack>
                   </Box>
                 ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
                     No completion data available
                   </Typography>
                 )}

@@ -226,7 +226,36 @@ export const WorkflowsTab: React.FC = () => {
 
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange}>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          sx={{
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              minHeight: 48,
+              borderRadius: '8px 8px 0 0',
+              marginRight: 1,
+              minWidth: 'auto',
+              px: 2,
+              '&.Mui-selected': {
+                backgroundColor: '#0b378aff',
+                color: 'white',
+                fontWeight: 600,
+              },
+              '&:hover': {
+                backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                '&.Mui-selected': {
+                  backgroundColor: '#0b378aff',
+                },
+              },
+            },
+            '& .MuiTabs-indicator': {
+              display: 'none',
+            },
+          }}
+        >
           <Tab label="Pipeline" />
           <Tab label="Execution History" />
         </Tabs>

@@ -24,11 +24,13 @@ import {
   CheckCircle as CheckCircleIcon,
   AutoFixHigh as CleanupIcon,
   Refresh as RefreshIcon,
+  List as RuleListIcon,
 } from '@mui/icons-material';
 import { ToggleButton } from '../ToggleButton';
 import { useActivity } from '../ActivityProvider';
 import { useGetCleanupDataQuery } from '../../../services/cleanupApi';
 import { FixIssueSlideIn } from '../FixIssueSlideIn';
+import { CleanupRuleTimelineSlideIn } from './CleanupRuleTimelineSlideIn';
 import type { CleanupField } from '../../../types';
 import { useLazyGetTaskStatusQuery } from '../../../services/cleanupRuleApi';
 
@@ -146,10 +148,12 @@ const TaskStatusIndicator: React.FC<{
 
 export const CleanupTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
+  const { selectedEnvironment } = useSelector((state: RootState) => state.app);
   const { getReadOnlyFlag, getCompletionStatus, getActivityStatus } = useActivity();
   const isReadOnly = getReadOnlyFlag('Cleanup');
   const [selectedField, setSelectedField] = useState<CleanupField | null>(null);
   const [fixIssueOpen, setFixIssueOpen] = useState(false);
+  const [ruleTimelineSlideInOpen, setRuleTimelineSlideInOpen] = useState(false);
   const [taskMap, setTaskMap] = useState<Record<number, string>>({}); // changeLogId -> taskId mapping
   const [refreshedTasks, setRefreshedTasks] = useState<Set<string>>(new Set()); // Track manually refreshed tasks
   
@@ -160,23 +164,28 @@ export const CleanupTab: React.FC = () => {
     isFetching,
     refetch,
   } = useGetCleanupDataQuery(
-    { objectId: selectedObject?.object_id || '' },
-    { skip: !selectedObject?.object_id }
+    { objectId: selectedObject?.object_id || '', environmentId: selectedEnvironment?.id },
+    { skip: !selectedObject?.object_id || !selectedEnvironment?.id }
   );
 
-  // Refetch data when object changes
+  // Reset state and refetch data when object or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
+      setSelectedField(null);
+      setFixIssueOpen(false);
+      setRuleTimelineSlideInOpen(false);
+      setTaskMap({});
+      setRefreshedTasks(new Set());
       refetch();
     }
-  }, [selectedObject?.object_id, refetch]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, refetch]);
 
-  // Refresh activity status when tab is accessed
+  // Refresh activity status when tab is accessed or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       getActivityStatus(selectedObject.object_id);
     }
-  }, [selectedObject?.object_id, getActivityStatus]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, getActivityStatus]);
 
   // Store task ID when a cleanup task is started
   const handleTaskStarted = (changeLogId: number, taskId: string) => {
@@ -205,6 +214,14 @@ export const CleanupTab: React.FC = () => {
     console.log(`Running cleanup for field: ${fieldName}`);
     // Implement your cleanup logic here
     alert(`Run cleanup for ${fieldName}`);
+  };
+
+  const handleShowRuleList = () => {
+    setRuleTimelineSlideInOpen(true);
+  };
+
+  const handleCloseRuleTimelineSlideIn = () => {
+    setRuleTimelineSlideInOpen(false);
   };
 
   const getStatusChip = (field: CleanupField) => {
@@ -345,6 +362,18 @@ export const CleanupTab: React.FC = () => {
             activity="Cleanup"
             disabled={false}
           />
+          <Tooltip title="View cleanup rules">
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<RuleListIcon />}
+              onClick={handleShowRuleList}
+              disabled={isReadOnly}
+              sx={{ minWidth: '140px' }}
+            >
+              Rule List
+            </Button>
+          </Tooltip>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -510,6 +539,16 @@ export const CleanupTab: React.FC = () => {
           objectId={selectedObject.object_id}
           onTaskStarted={handleTaskStarted}
           taskMap={taskMap}
+        />
+      )}
+
+      {/* Cleanup Rule Timeline Slide-in Modal */}
+      {selectedObject && (
+        <CleanupRuleTimelineSlideIn
+          open={ruleTimelineSlideInOpen}
+          onClose={handleCloseRuleTimelineSlideIn}
+          objectId={selectedObject.object_id}
+          objectName={selectedObject.object_name}
         />
       )}
     </Box>

@@ -168,7 +168,7 @@ export const Users: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+      <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
         <CircularProgress />
       </Box>
     );
@@ -176,7 +176,7 @@ export const Users: React.FC = () => {
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: 1 }}>
         <Alert severity="error">
           Failed to load users. Please try again.
         </Alert>
@@ -185,12 +185,12 @@ export const Users: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 1 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         User Management
       </Typography>
-      
-      <Grid container spacing={3}>
+
+      <Grid container spacing={1}>
         <Grid item xs={12}>
           <Card elevation={3}>
             <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -305,7 +305,7 @@ export const Users: React.FC = () => {
             </TableContainer>
             
             {activeUsers.length === 0 && (
-              <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Box sx={{ p: 1, textAlign: 'center' }}>
                 <Typography variant="h6" color="text.secondary">
                   No users found
                 </Typography>
@@ -317,10 +317,10 @@ export const Users: React.FC = () => {
 
             {/* Pagination */}
             {activeUsers.length > 0 && (
-              <Box sx={{ 
-                p: 2, 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+              <Box sx={{
+                p: 1,
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 borderTop: '1px solid',
                 borderColor: 'divider'

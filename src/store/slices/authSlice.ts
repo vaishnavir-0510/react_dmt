@@ -22,6 +22,47 @@ const isValidToken = (token: string | null): boolean => {
   }
 };
 
+// Clear expired tokens on startup
+const clearExpiredTokens = () => {
+  try {
+    const accessToken = localStorage.getItem('accessToken');
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    // If tokens exist but are expired, clear everything
+    if (accessToken || refreshToken) {
+      const accessValid = accessToken ? isValidToken(accessToken) : false;
+      const refreshValid = refreshToken ? isValidToken(refreshToken) : false;
+      
+      if (!accessValid && !refreshValid) {
+        console.group('🔐 Clearing Expired Tokens on Startup');
+        console.log(`⏰ Time: ${new Date().toLocaleString()}`);
+        console.log('⚠️ Both access and refresh tokens are expired - clearing all data');
+        console.groupEnd();
+        
+        // Clear all localStorage
+        localStorage.clear();
+        // Also clear sessionStorage for good measure
+        sessionStorage.clear();
+        return;
+      }
+      
+      // If only access token is expired but refresh is valid, we can keep it
+      // The token refresh logic will handle it
+      if (!accessValid && refreshValid) {
+        console.log('⚠️ Access token expired but refresh token valid - will refresh on next API call');
+      }
+    }
+  } catch (error) {
+    console.error('Error checking token expiry on startup:', error);
+    // On error, clear everything to be safe
+    localStorage.clear();
+    sessionStorage.clear();
+  }
+};
+
+// Clear expired tokens on module load
+clearExpiredTokens();
+
 const initialToken = localStorage.getItem('accessToken');
 const initialRefreshToken = localStorage.getItem('refreshToken');
 
@@ -40,6 +81,32 @@ const authSlice = createSlice({
   reducers: {
     setCredentials: (state, action: PayloadAction<AuthResponse>) => {
       const { access_token, refresh_token, user_id } = action.payload;
+      
+      console.group('🔐 Setting User Credentials');
+      console.log(`⏰ Time: ${new Date().toLocaleString()}`);
+      console.log(`👤 User ID: ${user_id}`);
+      
+      // Parse and log token expiry info
+      try {
+        const accessPayload = JSON.parse(atob(access_token.split('.')[1]));
+        const accessExpiry = new Date(accessPayload.exp * 1000);
+        const remaining = accessPayload.exp * 1000 - Date.now();
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        console.log(`📅 Access Token Expiry: ${accessExpiry.toLocaleString()}`);
+        console.log(`⏳ Remaining Time: ${minutes}m ${seconds}s`);
+      } catch (e) {
+        console.warn('Could not parse access token expiry');
+      }
+      
+      try {
+        const refreshPayload = JSON.parse(atob(refresh_token.split('.')[1]));
+        const refreshExpiry = new Date(refreshPayload.exp * 1000);
+        console.log(`📅 Refresh Token Expiry: ${refreshExpiry.toLocaleString()}`);
+      } catch (e) {
+        console.warn('Could not parse refresh token expiry');
+      }
+      
       state.accessToken = access_token;
       state.refreshToken = refresh_token;
       state.isAuthenticated = true;
@@ -54,6 +121,9 @@ const authSlice = createSlice({
       localStorage.setItem('accessToken', access_token);
       localStorage.setItem('refreshToken', refresh_token);
       localStorage.setItem('lastActivity', Date.now().toString());
+      
+      console.log('✅ Credentials saved to Redux and localStorage');
+      console.groupEnd();
     },
     logout: (state) => {
       state.user = null;
@@ -61,17 +131,87 @@ const authSlice = createSlice({
       state.refreshToken = null;
       state.isAuthenticated = false;
       state.error = null;
-      localStorage.clear(); // Clear ALL local storage
+      
+      // Explicitly clear all storage to ensure complete cleanup
+      try {
+        console.group('🧹 Clearing All Storage on Logout');
+        console.log(`⏰ Time: ${new Date().toLocaleString()}`);
+        
+        // Clear all known keys first
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('lastActivity');
+        localStorage.removeItem('app_state');
+        localStorage.removeItem('migration_state');
+        localStorage.removeItem('sidebar_session');
+        localStorage.removeItem('local_workspace_project');
+        localStorage.removeItem('tokenRefreshInProgress');
+        
+        // Clear any remaining keys
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Final clear to ensure everything is gone
+        localStorage.clear();
+        
+        // Also clear sessionStorage completely
+        sessionStorage.clear();
+        
+        console.log('✅ All localStorage and sessionStorage cleared');
+        console.groupEnd();
+      } catch (error) {
+        console.error('❌ Error clearing storage on logout:', error);
+        // Fallback to clear all
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (clearError) {
+          console.error('❌ Error during fallback clear:', clearError);
+        }
+      }
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
     updateTokens: (state, action: PayloadAction<{ accessToken: string; refreshToken: string }>) => {
+      console.group('🔄 Updating Tokens');
+      console.log(`⏰ Time: ${new Date().toLocaleString()}`);
+      
+      // Parse and log token expiry info
+      try {
+        const accessPayload = JSON.parse(atob(action.payload.accessToken.split('.')[1]));
+        const accessExpiry = new Date(accessPayload.exp * 1000);
+        const remaining = accessPayload.exp * 1000 - Date.now();
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        console.log(`📅 New Access Token Expiry: ${accessExpiry.toLocaleString()}`);
+        console.log(`⏳ Remaining Time: ${minutes}m ${seconds}s`);
+      } catch (e) {
+        console.warn('Could not parse access token expiry');
+      }
+      
+      try {
+        const refreshPayload = JSON.parse(atob(action.payload.refreshToken.split('.')[1]));
+        const refreshExpiry = new Date(refreshPayload.exp * 1000);
+        console.log(`📅 New Refresh Token Expiry: ${refreshExpiry.toLocaleString()}`);
+      } catch (e) {
+        console.warn('Could not parse refresh token expiry');
+      }
+      
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
       localStorage.setItem('accessToken', action.payload.accessToken);
       localStorage.setItem('refreshToken', action.payload.refreshToken);
       localStorage.setItem('lastActivity', Date.now().toString());
+      
+      console.log('✅ Tokens updated in Redux and localStorage');
+      console.groupEnd();
     },
     setUser: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {

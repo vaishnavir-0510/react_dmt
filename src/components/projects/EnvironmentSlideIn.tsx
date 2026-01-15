@@ -15,6 +15,7 @@ import {
   Grid,
   FormControlLabel,
   Checkbox,
+  CircularProgress,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -28,6 +29,7 @@ interface EnvironmentSlideInProps {
   projectId: string;
   onClose: () => void;
   onSave: (environmentData: any) => void;
+  isLoading?: boolean;
 }
 
 export const EnvironmentSlideIn: React.FC<EnvironmentSlideInProps> = ({
@@ -36,6 +38,7 @@ export const EnvironmentSlideIn: React.FC<EnvironmentSlideInProps> = ({
   projectId,
   onClose,
   onSave,
+  isLoading = false,
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -206,10 +209,11 @@ export const EnvironmentSlideIn: React.FC<EnvironmentSlideInProps> = ({
           <Button onClick={onClose} variant="outlined">
             Cancel
           </Button>
-          <Button 
-            onClick={handleSave} 
-            variant="contained" 
-            startIcon={<SaveIcon />}
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            startIcon={isLoading ? <CircularProgress size={20} /> : <SaveIcon />}
+            disabled={isLoading}
           >
             {environment ? 'Update' : 'Create'} Environment
           </Button>

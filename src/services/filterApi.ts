@@ -19,15 +19,39 @@ export const filterApi = createApi({
   endpoints: (builder) => ({
     getFilterData: builder.query<FilterDataResponse, {
       objectId: string;
+      environmentId?: string;
       page?: number;
       limit?: number;
       search?: string;
     }>({
-      query: ({ objectId, page = 1, limit = 10, search = '' }) =>
-        `/management/v2/filtered_file/${objectId}/${objectId}.csv?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`,
+      query: ({ objectId, environmentId, page = 1, limit = 10, search = '' }) => {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+          search: search,
+        });
+        if (environmentId) {
+          params.append('environment', environmentId);
+        }
+        return `/management/v2/filtered_file/${objectId}/${objectId}.csv?${params.toString()}`;
+      },
       providesTags: ['FilterData'],
+    }),
+    removeColumns: builder.mutation<{
+      for_migrate_update: Record<string, string>;
+    }, {
+      object_id: string;
+      columns_to_remove: string[];
+      for_migrate?: boolean;
+    }>({
+      query: (body) => ({
+        url: '/management/v2/remove_columns',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['FilterData'],
     }),
   }),
 });
 
-export const { useGetFilterDataQuery } = filterApi;
+export const { useGetFilterDataQuery, useRemoveColumnsMutation } = filterApi;

@@ -24,11 +24,13 @@ import {
   CheckCircle as CheckCircleIcon,
   AutoFixHigh as ValidateIcon,
   Refresh as RefreshIcon,
+  List as RuleListIcon,
 } from '@mui/icons-material';
 import { ToggleButton } from '../ToggleButton';
 import { useActivity } from '../ActivityProvider';
 import { useGetValidateDataQuery } from '../../../services/validateApi';
 import { FixIssueSlideIn } from '../FixIssueSlideIn';
+import { ValidateRuleTimelineSlideIn } from './ValidateRuleTimelineSlideIn';
 import type { CleanupField } from '../../../types';
 import { useLazyGetTaskStatusQuery } from '../../../services/validateRuleApi';
 
@@ -146,9 +148,11 @@ const TaskStatusIndicator: React.FC<{
 
 export const ValidateTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
+  const { selectedEnvironment } = useSelector((state: RootState) => state.app);
   const { getReadOnlyFlag, getActivityStatus } = useActivity();
   const [selectedField, setSelectedField] = useState<CleanupField | null>(null);
   const [fixIssueOpen, setFixIssueOpen] = useState(false);
+  const [ruleTimelineSlideInOpen, setRuleTimelineSlideInOpen] = useState(false);
   const [taskMap, setTaskMap] = useState<Record<number, string>>({}); // changeLogId -> taskId mapping
   const [refreshedTasks, setRefreshedTasks] = useState<Set<string>>(new Set()); // Track manually refreshed tasks
   
@@ -159,23 +163,27 @@ export const ValidateTab: React.FC = () => {
     isFetching,
     refetch,
   } = useGetValidateDataQuery(
-    { objectId: selectedObject?.object_id || '' },
-    { skip: !selectedObject?.object_id }
+    { objectId: selectedObject?.object_id || '', environmentId: selectedEnvironment?.id },
+    { skip: !selectedObject?.object_id || !selectedEnvironment?.id }
   );
 
-  // Refetch data when object changes
+  // Reset state and refetch data when object or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
+      setSelectedField(null);
+      setFixIssueOpen(false);
+      setTaskMap({});
+      setRefreshedTasks(new Set());
       refetch();
     }
-  }, [selectedObject?.object_id, refetch]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, refetch]);
 
-  // Refresh activity status when tab is accessed
+  // Refresh activity status when tab is accessed or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       getActivityStatus(selectedObject.object_id);
     }
-  }, [selectedObject?.object_id, getActivityStatus]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, getActivityStatus]);
 
   // Store task ID when a validate task is started
   const handleTaskStarted = (changeLogId: number, taskId: string) => {
@@ -204,6 +212,14 @@ export const ValidateTab: React.FC = () => {
     console.log(`Running validate for field: ${fieldName}`);
     // Implement your validate logic here
     alert(`Run validate for ${fieldName}`);
+  };
+
+  const handleShowRuleList = () => {
+    setRuleTimelineSlideInOpen(true);
+  };
+
+  const handleCloseRuleTimelineSlideIn = () => {
+    setRuleTimelineSlideInOpen(false);
   };
 
   const getStatusChip = (field: CleanupField) => {
@@ -336,6 +352,17 @@ export const ValidateTab: React.FC = () => {
             activity="Validate"
             disabled={false}
           />
+          <Tooltip title="View validate rules">
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<RuleListIcon />}
+              onClick={handleShowRuleList}
+              sx={{ minWidth: '140px' }}
+            >
+              Rule List
+            </Button>
+          </Tooltip>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -505,6 +532,16 @@ export const ValidateTab: React.FC = () => {
           objectId={selectedObject.object_id}
           onTaskStarted={handleTaskStarted}
           taskMap={taskMap}
+        />
+      )}
+
+      {/* Validate Rule Timeline Slide-in Modal */}
+      {selectedObject && (
+        <ValidateRuleTimelineSlideIn
+          open={ruleTimelineSlideInOpen}
+          onClose={handleCloseRuleTimelineSlideIn}
+          objectId={selectedObject.object_id}
+          objectName={selectedObject.object_name}
         />
       )}
     </Box>

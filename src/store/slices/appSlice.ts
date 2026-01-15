@@ -11,10 +11,62 @@ interface AppState {
   isSettingsMenuOpen: boolean;
   currentView: 'application' | 'settings';
   currentApp: 'migration' | 'backup' | 'translation' | 'file migration' | null;
+  lastRoute: string | null;
 }
+
+// Check if token exists and is valid
+const isValidToken = (token: string | null): boolean => {
+  if (!token) return false;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+};
 
 // Load initial state from localStorage for persistence
 const loadInitialState = (): AppState => {
+  // Check if user is authenticated (has valid token)
+  const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+  const isAuthenticated = isValidToken(accessToken);
+  
+  // Don't load state if we're on login or register page (user is logged out)
+  // Or if user is not authenticated (token expired or missing)
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+  if ((currentPath === '/login' || currentPath === '/register') || !isAuthenticated) {
+    // Clear lastRoute if not authenticated or on auth pages to prevent redirect loops
+    if ((!isAuthenticated || currentPath === '/login' || currentPath === '/register') && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('app_state');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.lastRoute) {
+            // Clear lastRoute from stored state
+            parsed.lastRoute = null;
+            localStorage.setItem('app_state', JSON.stringify(parsed));
+          }
+        }
+      } catch {
+        // Ignore errors when clearing
+      }
+    }
+    
+    // Return default state for login page or unauthenticated users
+    return {
+      selectedProject: null,
+      selectedEnvironment: null,
+      selectedSystem: null,
+      isSidebarOpen: true,
+      activeMenu: 'dashboard',
+      isSettingsMenuOpen: false,
+      currentView: 'application',
+      currentApp: 'migration',
+      lastRoute: null,
+    };
+  }
+  
   try {
     const stored = localStorage.getItem('app_state');
     if (stored) {
@@ -31,6 +83,7 @@ const loadInitialState = (): AppState => {
           isSettingsMenuOpen: parsed.isSettingsMenuOpen || false,
           currentView: parsed.currentView || 'application',
           currentApp: parsed.currentApp || 'migration',
+          lastRoute: parsed.lastRoute || null,
         };
       }
     }
@@ -38,17 +91,33 @@ const loadInitialState = (): AppState => {
     console.error('Failed to load app state from localStorage:', error);
   }
 
-  // Fallback to URL-based initialization
-  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+  // Try to get last route from localStorage first, then fallback to current URL
+  let path = typeof window !== 'undefined' ? window.location.pathname : '/';
+  
+  // If we're at root and have a stored lastRoute, use it
+  if (path === '/' && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('app_state');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.lastRoute && parsed.lastRoute !== '/') {
+          path = parsed.lastRoute;
+        }
+      }
+    } catch {
+      // Ignore error, use current path
+    }
+  }
 
-  // Settings routes
-  const settingsRoutes = ['/account', '/users', '/projects'];
+  // Settings routes: account, users, projects, security-policies
+  const settingsRoutes = ['/account', '/users', '/projects', '/security-policies'];
   const isSettingsRoute = settingsRoutes.includes(path);
 
   if (isSettingsRoute) {
     let activeMenu = 'account';
     if (path === '/users') activeMenu = 'user';
     if (path === '/projects') activeMenu = 'project';
+    if (path === '/security-policies') activeMenu = 'security-policies';
 
     return {
       selectedProject: null,
@@ -59,10 +128,13 @@ const loadInitialState = (): AppState => {
       isSettingsMenuOpen: true,
       currentView: 'settings',
       currentApp: null,
+      lastRoute: path,
     };
   }
 
   // Application routes
+  // Migration routes: /migration, /migration/:objectId, /migration/:objectId/:tabName
+  // Migration tabs: summary, relationship, filter, metadata, cleanup, transform, mapping, validate, load, error, workflows
   const isMigrationRoute = path.startsWith('/migration') || path === '/dashboard' || path === '/entities' || path === '/management';
   const isBackupRoute = path.startsWith('/backup');
   const isTranslationRoute = path.startsWith('/translation');
@@ -78,6 +150,7 @@ const loadInitialState = (): AppState => {
     if (isFileMigrationRoute) currentApp = 'file migration';
 
     // Map routes to active menu
+    // All migration routes (/migration/:objectId/:tabName) map to 'entities' menu
     if (path === '/entities' || path.startsWith('/migration')) activeMenu = 'entities';
     if (path === '/management') activeMenu = 'management';
     if (path === '/backup/dashboard') activeMenu = 'backup dashboard';
@@ -88,9 +161,19 @@ const loadInitialState = (): AppState => {
     if (path === '/translation/languages') activeMenu = 'language packs';
     if (path === '/translation/memory') activeMenu = 'translation memory';
     if (path === '/translation/progress') activeMenu = 'progress tracking';
+    if (path === '/translation/translations') activeMenu = 'translations';
     if (path === '/file-migration/upload') activeMenu = 'file upload';
-    if (path === '/file-migration/analysis') activeMenu = 'file analysis';
+    if (path === '/file-migration/relationship') activeMenu = 'file relationship';
+    if (path === '/file-migration/filter') activeMenu = 'file filter';
+    if (path === '/file-migration/metadata') activeMenu = 'file metadata';
+    if (path === '/file-migration/cleanup') activeMenu = 'file cleanup';
     if (path === '/file-migration/transform') activeMenu = 'file transform';
+    if (path === '/file-migration/mapping') activeMenu = 'file mapping';
+    if (path === '/file-migration/validate') activeMenu = 'file validate';
+    if (path === '/file-migration/load') activeMenu = 'file load';
+    if (path === '/file-migration/error') activeMenu = 'file error';
+    if (path === '/file-migration/workflows') activeMenu = 'file workflows';
+    if (path === '/file-migration/analysis') activeMenu = 'file analysis';
     if (path === '/file-migration/storage') activeMenu = 'file storage';
 
     return {
@@ -102,6 +185,7 @@ const loadInitialState = (): AppState => {
       isSettingsMenuOpen: false,
       currentView: 'application',
       currentApp,
+      lastRoute: path,
     };
   }
 
@@ -115,6 +199,7 @@ const loadInitialState = (): AppState => {
     isSettingsMenuOpen: false,
     currentView: 'application',
     currentApp: 'migration',
+    lastRoute: path,
   };
 };
 
@@ -210,35 +295,69 @@ const appSlice = createSlice({
       saveStateToLocalStorage(state);
     },
     // Enhanced action to sync state with current route
+    // Handles route synchronization and state updates based on current pathname
+    // Only updates state if it's different to avoid unnecessary re-renders
     syncStateWithRoute: (state, action: PayloadAction<{ pathname: string }>) => {
       const { pathname } = action.payload;
 
-      const settingsRoutes = ['/account', '/users', '/projects'];
+      // Don't save login or register routes as lastRoute
+      if (pathname === '/login' || pathname === '/register') {
+        return;
+      }
+
+      // Settings routes: account, users, projects, security-policies
+      const settingsRoutes = ['/account', '/users', '/projects', '/security-policies'];
+      
+      // Migration routes: /migration, /migration/:objectId, /migration/:objectId/:tabName
+      // Migration tabs: summary, relationship, filter, metadata, cleanup, transform, mapping, validate, load, error, workflows
       const isMigrationRoute = pathname.startsWith('/migration') || pathname === '/dashboard' || pathname === '/entities' || pathname === '/management';
       const isBackupRoute = pathname.startsWith('/backup');
       const isTranslationRoute = pathname.startsWith('/translation');
       const isFileMigrationRoute = pathname.startsWith('/file-migration');
 
+      // Handle settings routes: account, users, projects
       if (settingsRoutes.includes(pathname)) {
-        state.currentView = 'settings';
-        state.isSettingsMenuOpen = true;
-        state.currentApp = null;
+        // Only update if state is different to avoid unnecessary re-renders
+        if (state.currentView !== 'settings') {
+          state.currentView = 'settings';
+        }
+        if (!state.isSettingsMenuOpen) {
+          state.isSettingsMenuOpen = true;
+        }
+        if (state.currentApp !== null) {
+          state.currentApp = null;
+        }
 
-        // Set active menu based on route
-        if (pathname === '/account') state.activeMenu = 'account';
-        if (pathname === '/users') state.activeMenu = 'user';
-        if (pathname === '/projects') state.activeMenu = 'project';
+        // Set active menu based on settings route
+        let newActiveMenu = 'account';
+        if (pathname === '/users') newActiveMenu = 'user';
+        if (pathname === '/projects') newActiveMenu = 'project';
+        if (pathname === '/security-policies') newActiveMenu = 'security-policies';
+        if (state.activeMenu !== newActiveMenu) {
+          state.activeMenu = newActiveMenu;
+        }
       } else if (isMigrationRoute || isBackupRoute || isTranslationRoute || isFileMigrationRoute) {
-        state.currentView = 'application';
-        state.isSettingsMenuOpen = false;
+        // Only update if state is different to avoid unnecessary re-renders
+        if (state.currentView !== 'application') {
+          state.currentView = 'application';
+        }
+        if (state.isSettingsMenuOpen) {
+          state.isSettingsMenuOpen = false;
+        }
 
         // Set current app based on route
-        if (isBackupRoute) state.currentApp = 'backup';
-        else if (isTranslationRoute) state.currentApp = 'translation';
-        else if (isFileMigrationRoute) state.currentApp = 'file migration';
-        else state.currentApp = 'migration';
+        let newCurrentApp: 'migration' | 'backup' | 'translation' | 'file migration' = 'migration';
+        if (isBackupRoute) newCurrentApp = 'backup';
+        else if (isTranslationRoute) newCurrentApp = 'translation';
+        else if (isFileMigrationRoute) newCurrentApp = 'file migration';
+        
+        if (state.currentApp !== newCurrentApp) {
+          state.currentApp = newCurrentApp;
+        }
 
         // Set active menu based on route
+        // Migration routes: all /migration/:objectId/:tabName routes map to 'entities' menu
+        // Migration tabs handled: summary, relationship, filter, metadata, cleanup, transform, mapping, validate, load, error, workflows
         if (pathname === '/dashboard') state.activeMenu = 'dashboard';
         if (pathname === '/entities' || pathname.startsWith('/migration')) state.activeMenu = 'entities';
         if (pathname === '/management') state.activeMenu = 'management';
@@ -250,12 +369,24 @@ const appSlice = createSlice({
         if (pathname === '/translation/languages') state.activeMenu = 'language packs';
         if (pathname === '/translation/memory') state.activeMenu = 'translation memory';
         if (pathname === '/translation/progress') state.activeMenu = 'progress tracking';
+        if (pathname === '/translation/translations') state.activeMenu = 'translations';
         if (pathname === '/file-migration/upload') state.activeMenu = 'file upload';
-        if (pathname === '/file-migration/analysis') state.activeMenu = 'file analysis';
+        if (pathname === '/file-migration/relationship') state.activeMenu = 'file relationship';
+        if (pathname === '/file-migration/filter') state.activeMenu = 'file filter';
+        if (pathname === '/file-migration/metadata') state.activeMenu = 'file metadata';
+        if (pathname === '/file-migration/cleanup') state.activeMenu = 'file cleanup';
         if (pathname === '/file-migration/transform') state.activeMenu = 'file transform';
+        if (pathname === '/file-migration/mapping') state.activeMenu = 'file mapping';
+        if (pathname === '/file-migration/validate') state.activeMenu = 'file validate';
+        if (pathname === '/file-migration/load') state.activeMenu = 'file load';
+        if (pathname === '/file-migration/error') state.activeMenu = 'file error';
+        if (pathname === '/file-migration/workflows') state.activeMenu = 'file workflows';
+        if (pathname === '/file-migration/analysis') state.activeMenu = 'file analysis';
         if (pathname === '/file-migration/storage') state.activeMenu = 'file storage';
       }
 
+      // Store the current route
+      state.lastRoute = pathname;
       saveStateToLocalStorage(state);
     },
     clearSelectedProject: (state) => {
@@ -287,6 +418,7 @@ const appSlice = createSlice({
       state.isSettingsMenuOpen = false;
       state.currentView = 'application';
       state.currentApp = 'migration';
+      state.lastRoute = null;
       try {
         localStorage.removeItem('app_state');
       } catch (error) {

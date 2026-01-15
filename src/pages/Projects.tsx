@@ -110,6 +110,15 @@ export const Projects: React.FC = () => {
   const [deleteEnvironmentDialogOpen, setDeleteEnvironmentDialogOpen] = useState(false);
   const [environmentToDelete, setEnvironmentToDelete] = useState<Environment | null>(null);
 
+  // Loading states for slide-in operations
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isUpdatingProject, setIsUpdatingProject] = useState(false);
+  const [isCreatingSystem, setIsCreatingSystem] = useState(false);
+  const [isUpdatingSystem, setIsUpdatingSystem] = useState(false);
+  const [isCreatingEnvironment, setIsCreatingEnvironment] = useState(false);
+  const [isUpdatingEnvironment, setIsUpdatingEnvironment] = useState(false);
+  const [isAddingUser, setIsAddingUser] = useState(false);
+
   // Data clearing flags for clean project switching
   const [clearDataFlag, setClearDataFlag] = useState(0);
 
@@ -712,7 +721,7 @@ export const Projects: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+      <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
         <CircularProgress />
       </Box>
     );
@@ -720,7 +729,7 @@ export const Projects: React.FC = () => {
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: 1 }}>
         <Alert severity="error">
           Failed to load projects. Please try again.
         </Alert>
@@ -729,10 +738,11 @@ export const Projects: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Project Management
-      </Typography>
+    <Box sx={{ px: 1, pb: 1, pt: 0 }}>
+
+    <Typography variant="h6" fontWeight={600}>
+  Project Management
+</Typography>
 
       {/* Delete Confirmation Dialogs */}
       <Dialog
@@ -810,7 +820,7 @@ export const Projects: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={1}>
         {/* Projects Table */}
         <Grid item xs={12}>
           <Card elevation={3}>
@@ -844,45 +854,7 @@ export const Projects: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Current Project Info */}
-        {selectedProject && (
-          <Grid item xs={12}>
-            <Card elevation={2} sx={{ backgroundColor: 'success.light', color: 'success.contrastText' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box>
-                    <Typography variant="h6" gutterBottom>
-                      Current Active Project
-                    </Typography>
-                    <Typography variant="body1" fontWeight="bold">
-                      {selectedProject.name}
-                    </Typography>
-                    {selectedProject.description && selectedProject.description !== 'None' && (
-                      <Typography variant="body2">
-                        {selectedProject.description}
-                      </Typography>
-                    )}
-                    {selectedProject.project_type && (
-                      <Chip
-                        label={selectedProject.project_type === 'file migration' ? 'FILE MIGRATION' : selectedProject.project_type.toUpperCase()}
-                        size="small"
-                        color="secondary"
-                        sx={{ mt: 1, color: 'white' }}
-                      />
-                    )}
-                  </Box>
-                  <Chip 
-                    label="Active" 
-                    color="success" 
-                    variant="filled"
-                    sx={{ color: 'white', fontWeight: 'bold' }}
-                  />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        )}
-
+       
         <Grid item xs={12}>
           <Paper elevation={2}>
             <TableContainer>
@@ -1102,7 +1074,7 @@ export const Projects: React.FC = () => {
         {/* Systems Table - Only show when a project is selected */}
         {selectedProjectForSystems && (
           <Grid item xs={12}>
-            <Card elevation={3} sx={{ mt: 3 }}>
+            <Card elevation={3} sx={{ mt: 1 }}>
               <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                   <Typography variant="h6" gutterBottom>
@@ -1132,7 +1104,7 @@ export const Projects: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Paper elevation={2} sx={{ mt: 2 }}>
+            <Paper elevation={2} sx={{ mt: 1 }}>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -1234,7 +1206,7 @@ export const Projects: React.FC = () => {
         {/* Environments Table - Only show when a project is selected */}
         {selectedProjectForSystems && (
           <Grid item xs={12}>
-            <Card elevation={3} sx={{ mt: 3 }}>
+            <Card elevation={3} sx={{ mt: 1 }}>
               <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                   <Typography variant="h6" gutterBottom>
@@ -1264,7 +1236,7 @@ export const Projects: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Paper elevation={2} sx={{ mt: 2 }}>
+            <Paper elevation={2} sx={{ mt: 1 }}>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -1379,7 +1351,7 @@ export const Projects: React.FC = () => {
         {/* Users Table - Only show when a project is selected */}
         {selectedProjectForSystems && (
           <Grid item xs={12}>
-            <Card elevation={3} sx={{ mt: 3 }}>
+            <Card elevation={3} sx={{ mt: 1 }}>
               <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                   <Typography variant="h6" gutterBottom>
@@ -1401,7 +1373,7 @@ export const Projects: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Paper elevation={2} sx={{ mt: 2 }}>
+            <Paper elevation={2} sx={{ mt: 1 }}>
               <TableContainer>
                 <Table>
                   <TableHead>

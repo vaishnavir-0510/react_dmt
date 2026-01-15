@@ -156,9 +156,9 @@ export const CompoundFieldsSlideIn: React.FC<CompoundFieldsSlideInProps> = ({
         {/* Fields List */}
         {!isLoading && compoundFields && (
           <List sx={{ flex: 1, overflow: 'auto' }}>
-            {compoundFields.map((field: CompoundField) => (
+            {compoundFields.map((field: CompoundField, index: number) => (
               <ListItem
-                key={field.field_id}
+                key={field.field_id || field.id || `compound-field-${index}`}
                 dense
                 sx={{
                   border: '1px solid',

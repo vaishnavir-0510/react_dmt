@@ -49,9 +49,16 @@ export const mappingApi = createApi({
   }),
   tagTypes: ['Mapping'],
   endpoints: (builder) => ({
-    getMappingData: builder.query<MappingField[], { sourceObjectId: string }>({
-      query: ({ sourceObjectId }) => 
-        `/migration/v1/field/mapping/?source_object_id=${sourceObjectId}`,
+    getMappingData: builder.query<MappingField[], { sourceObjectId: string; environmentId?: string }>({
+      query: ({ sourceObjectId, environmentId }) => {
+        const params = new URLSearchParams({
+          source_object_id: sourceObjectId,
+        });
+        if (environmentId) {
+          params.append('environment', environmentId);
+        }
+        return `/migration/v1/field/mapping/?${params.toString()}`;
+      },
       providesTags: ['Mapping'],
     }),
   }),

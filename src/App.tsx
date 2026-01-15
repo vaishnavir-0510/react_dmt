@@ -1,18 +1,22 @@
 // App.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider, useSelector } from 'react-redux';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { Box, CircularProgress } from '@mui/material';
 import { store, type RootState } from './store';
 import { Layout } from './components/layout/Layout';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Entities } from './pages/Entities';
 import { Management } from './pages/Management';
 import { Account } from './pages/Account';
 import { Users } from './pages/Users';
 import { Projects } from './pages/Projects';
+import { SecurityPolicies } from './pages/SecurityPolicies';
 import { MigrationLayout } from './components/migration/MigrationLayout';
 import { FileMigrationLayout } from './components/layout/FileMigrationLayout';
 import { BackupLayout } from './components/layout/BackupLayout';
@@ -20,9 +24,10 @@ import { TranslationDashboard } from './pages/translation/TranslationDashboard';
 import { Translations } from './pages/translation/Translations';
 import { WorkspaceInitializer } from './components/workspace/WorkspaceInitializer';
 import { ProtectedRoute } from './components/auth/ProtestedRoute';
-import { BackupDashboard } from './pages/backup/BackupDashboard';
 import { useIdleTimerHook } from './hooks/useIdleTimer';
 import { IdleTimeoutDialog } from './components/auth/IdleTimeoutDialog';
+import { setupMultiTabSync } from './utils/multiTabSync';
+import { setupActivityListeners } from './utils/session';
 
 const theme = createTheme({
   palette: {
@@ -33,17 +38,63 @@ const theme = createTheme({
       main: '#dc004e',
     },
   },
+  typography: {
+    fontFamily: 'Poppins, sans-serif',
+  },
 });
 
-// Helper component for default redirect
+// Helper component for default redirect - restores previous route if available
 const NavigateToProjectDashboard: React.FC = () => {
-  const { selectedProject } = useSelector((state: RootState) => state.app);
+  const { selectedProject, lastRoute } = useSelector((state: RootState) => state.app);
+  const { isAuthenticated, isLoading } = useSelector((state: RootState) => state.auth);
 
+  // Don't navigate anywhere if still loading auth state
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // If user is not authenticated, redirect to login
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If we have a last route and user is authenticated, restore it
+  if (lastRoute && lastRoute !== '/') {
+    // Validate that the last route is still valid
+    // Settings routes: account, users, projects, security-policies
+    const settingsRoutes = ['/account', '/users', '/projects', '/security-policies'];
+    const isSettingsRoute = settingsRoutes.includes(lastRoute);
+    
+    // Migration routes: /migration, /migration/:objectId, /migration/:objectId/:tabName
+    // Migration tabs: summary, relationship, filter, metadata, cleanup, transform, mapping, validate, load, error, workflows
+    const isMigrationRoute = lastRoute.startsWith('/migration');
+    const isBackupRoute = lastRoute.startsWith('/backup');
+    const isTranslationRoute = lastRoute.startsWith('/translation');
+    const isFileMigrationRoute = lastRoute.startsWith('/file-migration');
+    const isApplicationRoute = lastRoute === '/dashboard' || 
+                              lastRoute === '/entities' || 
+                              lastRoute === '/management' ||
+                              isMigrationRoute ||
+                              isBackupRoute ||
+                              isTranslationRoute ||
+                              isFileMigrationRoute;
+
+    // Only restore if it's a valid route (settings, application, or migration)
+    if (isSettingsRoute || isApplicationRoute || isMigrationRoute) {
+      return <Navigate to={lastRoute} replace />;
+    }
+  }
+
+  // Fallback to default dashboard based on project type (only if authenticated)
   if (selectedProject?.project_type === 'backup') {
     return <Navigate to="/backup/dashboard" replace />;
   } else if (selectedProject?.project_type === 'translation') {
     return <Navigate to="/translation/dashboard" replace />;
-  } else if (selectedProject?.project_type === 'file migration') {
+  } else if (selectedProject?.project_type === 'file migration' || selectedProject?.project_type === 'filemigration') {
     return <Navigate to="/file-migration/upload" replace />;
   } else {
     return <Navigate to="/dashboard" replace />;
@@ -52,6 +103,23 @@ const NavigateToProjectDashboard: React.FC = () => {
 
 const AppContent: React.FC = () => {
   const { showIdleDialog, countdown, handleStayActive, handleLogout } = useIdleTimerHook();
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  
+  // Token refresh is handled by useIdleTimerHook (checks every minute, refreshes 5 mins before expiry)
+
+  // Setup multi-tab synchronization
+  useEffect(() => {
+    const cleanup = setupMultiTabSync();
+    return cleanup;
+  }, []);
+
+  // Setup activity listeners for idle detection
+  useEffect(() => {
+    if (isAuthenticated) {
+      const cleanup = setupActivityListeners();
+      return cleanup;
+    }
+  }, [isAuthenticated]);
 
   return (
     <Router>
@@ -63,7 +131,9 @@ const AppContent: React.FC = () => {
         onLogout={handleLogout}
       />
       <Routes>
-        <Route path="/login" element={<Login />} />
+       <Route path="/login" element={<Login />} />
+       <Route path="/register" element={<Register />} />
+       <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Migration Routes (existing) */}
         <Route
@@ -122,6 +192,16 @@ const AppContent: React.FC = () => {
             <ProtectedRoute>
               <Layout>
                 <Projects />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/security-policies"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <SecurityPolicies />
               </Layout>
             </ProtectedRoute>
           }

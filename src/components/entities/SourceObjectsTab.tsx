@@ -166,7 +166,7 @@ export const SourceObjectsTab: React.FC = () => {
 
   if (!selectedProject) {
     return (
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: 1 }}>
         <Alert severity="warning">
           Please select a project to view source objects.
         </Alert>
@@ -175,9 +175,9 @@ export const SourceObjectsTab: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: 1 }}>
       {/* System Selection */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <FormControl size="small" sx={{ minWidth: 200 }}>
           <InputLabel>Source System</InputLabel>
           <Select
@@ -216,14 +216,14 @@ export const SourceObjectsTab: React.FC = () => {
 
       {/* Loading State */}
       {isLoadingObjects && selectedSystemId && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 1 }}>
           <CircularProgress />
         </Box>
       )}
 
       {/* Error State */}
       {objectsError && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 1 }}>
           Failed to load objects. Please try again.
         </Alert>
       )}

@@ -13,11 +13,13 @@ import {
   Divider,
   InputAdornment,
   Fade,
+  Link,
 } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import DomainIcon from '@mui/icons-material/Domain';
 import { useAuth } from '../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 const loginSchema = yup.object({
   username: yup.string().required('Username is required'),
@@ -29,6 +31,7 @@ type LoginFormData = yup.InferType<typeof loginSchema>;
 
 export const LoginForm: React.FC = () => {
   const { login, isLoading, error } = useAuth();
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -166,6 +169,30 @@ export const LoginForm: React.FC = () => {
               {isLoading ? <CircularProgress size={26} color="inherit" /> : 'Login'}
             </Button>
           </form>
+
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                sx={{ fontWeight: 600, cursor: 'pointer' }}
+              >
+                Forgot username and password?
+              </Link>
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Don't have an account?{' '}
+              <Link
+                component="button"
+                type="button"
+                onClick={() => navigate('/register')}
+                sx={{ fontWeight: 600, cursor: 'pointer' }}
+              >
+                Sign up
+              </Link>
+            </Typography>
+          </Box>
 
           <Typography variant="caption" sx={{ display: 'block', mt: 3, textAlign: 'center', color: 'text.secondary'}}>
             © {new Date().getFullYear()} Your Company. All rights reserved.

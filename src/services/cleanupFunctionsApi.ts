@@ -1,5 +1,6 @@
 // services/cleanupFunctionsApi.ts
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import type { RootState } from '../store';
 import type { CleanupFunction, CleanupFunctionsResponse } from '../types';
 
 export const cleanupFunctionsApi = createApi({

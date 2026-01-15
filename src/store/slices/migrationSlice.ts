@@ -4,6 +4,27 @@ import type { MigrationObject, MigrationState, MigrationTab } from '../../types'
 
 // Load initial state from localStorage for persistence
 const loadInitialState = (): MigrationState => {
+  // Don't load state if we're on login or register page (user is logged out)
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+  if (currentPath === '/login' || currentPath === '/register') {
+    return {
+      selectedObject: null,
+      activeTab: 'summary',
+      migrationName: '',
+      summaryData: null,
+      relationshipData: null,
+      filterData: null,
+      metadataData: null,
+      cleanupData: null,
+      transformData: null,
+      mappingData: null,
+      validateData: null,
+      loadData: null,
+      errorData: null,
+      workflowsData: null,
+    };
+  }
+  
   try {
     const stored = localStorage.getItem('migration_state');
     if (stored) {

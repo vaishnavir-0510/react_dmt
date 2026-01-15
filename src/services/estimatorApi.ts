@@ -37,7 +37,7 @@ const baseQuery = fetchBaseQuery({
         try {
             const responseBody = await clonedResponse.json();
             console.log('🌐 ESTIMATOR RESPONSE BODY:', responseBody);
-        } catch (e) {
+        } catch {
             console.log('🌐 ESTIMATOR RESPONSE BODY: (not JSON or empty)');
         }
 
@@ -45,37 +45,101 @@ const baseQuery = fetchBaseQuery({
     }
 });
 
+// Track if a refresh is in progress to prevent multiple simultaneous refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<any> | null = null;
+
 const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
+    // Skip token refresh for refresh_token endpoint itself to prevent infinite loops
+    const isRefreshTokenRequest = args.url?.includes('/auth/v3/refresh_token');
+    
     let result = await baseQuery(args, api, extraOptions);
 
-    if (result.error && result.error.status === 401) {
-        // Try to refresh token
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-            const refreshResult = await baseQuery(
-                {
-                    url: '/auth/v3/refresh_token',
-                    method: 'POST',
-                    body: { refresh_token: refreshToken },
-                },
-                api,
-                extraOptions
-            );
-
-            if (refreshResult.data) {
-                const { access_token, refresh_token: newRefreshToken } = refreshResult.data as any;
-                api.dispatch(updateTokens({
-                    accessToken: access_token,
-                    refreshToken: newRefreshToken || refreshToken
-                }));
-
+    if (result.error && result.error.status === 401 && !isRefreshTokenRequest) {
+        // Check if refresh is already in progress (shared state via localStorage)
+        const refreshInProgress = localStorage.getItem('tokenRefreshInProgress') === 'true';
+        
+        if (refreshInProgress && isRefreshing && refreshPromise) {
+            // Wait for existing refresh to complete
+            try {
+                await refreshPromise;
                 // Retry original request with new token
                 result = await baseQuery(args, api, extraOptions);
-            } else {
+                return result;
+            } catch {
+                // Refresh failed, logout
                 api.dispatch(logout());
                 window.location.href = '/login';
+                return result;
             }
-        } else {
+        }
+
+        // Try to refresh token
+        const refreshToken = localStorage.getItem('refreshToken');
+        
+        if (!refreshToken) {
+            // No refresh token available, logout immediately
+            api.dispatch(logout());
+            window.location.href = '/login';
+            return result;
+        }
+
+        // Start refresh process
+        isRefreshing = true;
+        localStorage.setItem('tokenRefreshInProgress', 'true'); // Set shared flag
+        
+        refreshPromise = (async () => {
+            try {
+                // Create a base query without reauth to prevent infinite loop
+                const refreshBaseQuery = fetchBaseQuery({
+                    baseUrl: `${import.meta.env.VITE_API_BASE_URL}`,
+                    prepareHeaders: (headers) => {
+                        headers.set('Accept', 'application/json');
+                        headers.set('Content-Type', 'application/json');
+                        return headers;
+                    },
+                });
+
+                const refreshResult = await refreshBaseQuery(
+                    {
+                        url: `/auth/v3/refresh_token?refresh_token=${encodeURIComponent(refreshToken)}`,
+                        method: 'POST',
+                    },
+                    api,
+                    extraOptions
+                );
+
+                if (refreshResult.data && !refreshResult.error) {
+                    const { access_token, refresh_token: newRefreshToken } = refreshResult.data as any;
+                    
+                    // Update both tokens
+                    api.dispatch(updateTokens({
+                        accessToken: access_token,
+                        refreshToken: newRefreshToken || refreshToken
+                    }));
+
+                    return { success: true };
+                } else {
+                    // Refresh failed - invalid or expired refresh token
+                    throw new Error('Refresh token failed');
+                }
+            } catch (error) {
+                console.error('Token refresh failed:', error);
+                throw error;
+            } finally {
+                isRefreshing = false;
+                refreshPromise = null;
+                localStorage.removeItem('tokenRefreshInProgress'); // Clear shared flag
+            }
+        })();
+
+        try {
+            await refreshPromise;
+            // Retry original request with new token
+            result = await baseQuery(args, api, extraOptions);
+        } catch (error) {
+            // Refresh failed, logout and redirect
+            console.error('Token refresh failed, logging out:', error);
             api.dispatch(logout());
             window.location.href = '/login';
         }

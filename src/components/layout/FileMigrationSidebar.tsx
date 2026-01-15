@@ -13,7 +13,6 @@ import {
   Divider,
 } from '@mui/material';
 import {
-  Folder as FileMigrationIcon,
   UploadFile as UploadIcon,
   Assessment as AnalysisIcon,
   Transform as TransformIcon,
@@ -55,7 +54,7 @@ export const FileMigrationSidebar: React.FC = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const {isSidebarOpen, activeMenu, selectedProject } = useSelector((state: RootState) => state.app);
+  const { selectedProject } = useSelector((state: RootState) => state.app);
 
   const handleMenuClick = (menu: string, path: string) => {
     dispatch(setActiveMenu(menu));
@@ -68,9 +67,9 @@ export const FileMigrationSidebar: React.FC = () => {
 
   return (
     <Drawer
-      variant="persistent" open={isSidebarOpen}
-       sx={{
-        width: isSidebarOpen ? 280 : 0,
+      variant="permanent"
+      sx={{
+        width: 280,
         flexShrink: 0,
         [`& .MuiDrawer-paper`]: {
           width: 280,
@@ -112,6 +111,9 @@ export const FileMigrationSidebar: React.FC = () => {
                   '&.Mui-selected': {
                     backgroundColor: 'secondary.light',
                     color: 'secondary.contrastText',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    margin: '8px 12px',
                     '&:hover': {
                       backgroundColor: 'secondary.main',
                     },

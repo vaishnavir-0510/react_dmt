@@ -1,6 +1,6 @@
 // components/migration/MigrationLayout.tsx
-import React, { useEffect } from 'react';
-import { Box, Toolbar, Container, Paper, Typography, Breadcrumbs, Link, Button } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Toolbar, Container, Paper, Typography, Button, IconButton, CircularProgress, Alert } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import type { RootState } from '../../store';
@@ -9,6 +9,12 @@ import { setSelectedObject, setActiveTab } from '../../store/slices/migrationSli
 import { setActiveMenu } from '../../store/slices/appSlice';
 import type { MigrationTab } from '../../types';
 import { ActivityProvider } from './ActivityProvider';
+import { InsertDriveFile as FileIcon, Visibility as RevealIcon, VisibilityOff as RevealOffIcon } from '@mui/icons-material';
+import {
+  useGetRevealStatusQuery,
+  useCreateRevealMutation,
+  useUpdateRevealMutation,
+} from '../../services/revealApi';
 
 export const MigrationLayout: React.FC = () => {
   const dispatch = useDispatch();
@@ -17,6 +23,20 @@ export const MigrationLayout: React.FC = () => {
   const { objectId, tabName } = useParams<{ objectId: string; tabName: MigrationTab }>();
   const { selectedObject, migrationName, activeTab } = useSelector((state: RootState) => state.migration);
   const { activeMenu } = useSelector((state: RootState) => state.app);
+
+  // Reveal functionality state
+  const [revealStates, setRevealStates] = useState<Record<string, boolean>>({});
+  const [isRevealLoading, setIsRevealLoading] = useState<boolean>(false);
+
+  const isRevealActive = selectedObject?.object_id ? revealStates[selectedObject.object_id] || false : false;
+
+  // Reveal API hooks
+  const { data: revealData, error: revealError, refetch: refetchReveal } = useGetRevealStatusQuery(
+    selectedObject?.object_id || '',
+    { skip: !selectedObject?.object_id }
+  );
+  const [createReveal] = useCreateRevealMutation();
+  const [updateReveal] = useUpdateRevealMutation();
 
   // Ensure sidebar menu is set to 'entities' when in migration
   useEffect(() => {
@@ -53,20 +73,91 @@ export const MigrationLayout: React.FC = () => {
           console.error('Failed to parse migration objects from localStorage:', error);
         }
       }
-      
+
       // If object not found in localStorage, try to fetch from API or redirect
       console.warn('Object not found in localStorage, attempting to load from API...');
       // You can add API call here if needed
-      
+
       // If still not found after a moment, redirect to entities
       const timer = setTimeout(() => {
         console.warn('Object not found, redirecting to entities');
         navigate('/entities');
       }, 1000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [objectId, selectedObject, dispatch, navigate]);
+
+  // Reset reveal state when object changes
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      setRevealStates(prev => ({ ...prev, [selectedObject.object_id]: false }));
+      refetchReveal();
+    }
+  }, [selectedObject?.object_id, refetchReveal]);
+
+  // Update reveal active state based on API data
+  useEffect(() => {
+    if (selectedObject?.object_id) {
+      if (revealError) {
+        setRevealStates(prev => ({ ...prev, [selectedObject.object_id]: false }));
+      } else if (revealData?.message) {
+        setRevealStates(prev => ({ ...prev, [selectedObject.object_id]: revealData.message.reveal_flag }));
+      } else {
+        setRevealStates(prev => ({ ...prev, [selectedObject.object_id]: false }));
+      }
+    }
+  }, [revealData, revealError, selectedObject?.object_id]);
+
+  // Reveal functionality helper functions
+  const handleCreateReveal = async (objectId: string) => {
+    try {
+      setIsRevealLoading(true);
+      await createReveal({
+        latest_entry: true,
+        object_id: objectId,
+        reason: "Policy management",
+        reveal_flag: true,
+      }).unwrap();
+      refetchReveal();
+    } catch (error) {
+      console.error('Error creating reveal:', error);
+    } finally {
+      setIsRevealLoading(false);
+    }
+  };
+
+  const handleUpdateReveal = async (objectId: string) => {
+    try {
+      setIsRevealLoading(true);
+      await updateReveal({
+        objectId,
+        data: {
+          is_active: true,
+          latest_entry: false,
+          reveal_flag: false,
+        },
+      }).unwrap();
+      setRevealStates(prev => ({ ...prev, [objectId]: false }));
+      refetchReveal();
+    } catch (error) {
+      console.error('Error updating reveal:', error);
+    } finally {
+      setIsRevealLoading(false);
+    }
+  };
+
+  const handleRevealToggle = async () => {
+    if (!selectedObject?.object_id) return;
+
+    if (isRevealActive) {
+      // Turn off reveal
+      await handleUpdateReveal(selectedObject.object_id);
+    } else {
+      // Turn on reveal - always create new since we check status on load
+      await handleCreateReveal(selectedObject.object_id);
+    }
+  };
 
   // If no object ID in URL, show selection prompt
   if (!objectId) {
@@ -99,7 +190,7 @@ export const MigrationLayout: React.FC = () => {
     return (
       <Box sx={{ flexGrow: 1 }}>
         <Toolbar />
-        <Container maxWidth="xl" sx={{ mt: 2, mb: 4 }}>
+        <Container maxWidth="xl" sx={{ mt: 0, mb: 0 }}>
           <Paper elevation={2} sx={{ p: 4, textAlign: 'center' }}>
             <Typography variant="h4" component="h1" gutterBottom>
               Loading Object...
@@ -115,64 +206,48 @@ export const MigrationLayout: React.FC = () => {
 
   return (
     <Box sx={{ flexGrow: 1 }}>
-      <Toolbar />
-      
-      <Container maxWidth="xl" sx={{ mt: 2, mb: 4 }}>
-        {/* Breadcrumbs */}
-        <Breadcrumbs sx={{ mb: 3 }}>
-          <Link 
-            color="inherit" 
-            component="button" 
-            onClick={() => navigate('/dashboard')}
-            sx={{ border: 'none', background: 'none', cursor: 'pointer' }}
-          >
-            Dashboard
-          </Link>
-          <Link 
-            color="inherit" 
-            component="button" 
-            onClick={() => navigate('/entities')}
-            sx={{ border: 'none', background: 'none', cursor: 'pointer' }}
-          >
-            Entities
-          </Link>
-          <Typography color="text.primary">
-            {selectedObject.object_name} Migration
-          </Typography>
-        </Breadcrumbs>
-
-        {/* Header Section */}
-        <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-            <Box>
-              <Typography variant="h4" component="h1" gutterBottom fontWeight="bold">
-                {migrationName || `Migration - ${selectedObject.object_name}`}
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                System: {selectedObject.system_name} | Records: {selectedObject.records_count} | 
-                Fields: {selectedObject.field_count} | Operation: {selectedObject.operation}
-              </Typography>
+      {/* Header Section */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Typography variant="h4" component="h1" fontWeight="bold">
+          Migration - {selectedObject.object_name}
+        </Typography>
+        <IconButton
+          color="primary"
+          title="File"
+          size="small"
+        >
+          <FileIcon />
+        </IconButton>
+        <IconButton
+          onClick={handleRevealToggle}
+          disabled={isRevealLoading}
+          color={isRevealActive ? 'error' : 'primary'}
+          title={isRevealActive ? 'Turn off reveal mode' : 'Turn on reveal mode'}
+          size="small"
+        >
+          {isRevealLoading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
+              <CircularProgress size={16} />
             </Box>
-            
-            {!migrationName && (
-              <Typography variant="body2" color="warning.main">
-                Please set a migration name in the Workflows tab
-              </Typography>
-            )}
-          </Box>
-
-          {selectedObject.description && (
-            <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-              {selectedObject.description}
-            </Typography>
+          ) : isRevealActive ? (
+            <RevealIcon />
+          ) : (
+            <RevealOffIcon />
           )}
-        </Paper>
+        </IconButton>
+      </Box>
 
-        {/* Migration Tabs */}
-        <ActivityProvider>
-          <MigrationTabs objectId={objectId} />
-        </ActivityProvider>
-      </Container>
+      {/* Reveal Mode Active Banner */}
+      {isRevealActive && (
+        <Alert severity="error" sx={{ mb: 3, fontWeight: 'bold' }}>
+          Reveal Mode Active
+        </Alert>
+      )}
+
+      {/* Migration Tabs */}
+      <ActivityProvider>
+        <MigrationTabs objectId={objectId} isRevealActive={isRevealActive} />
+      </ActivityProvider>
     </Box>
   );
 };

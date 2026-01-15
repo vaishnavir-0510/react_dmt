@@ -311,8 +311,8 @@ const BackupType: React.FC = () => {
                               disabled={loadingMetadata}
                             >
                               {dateFields.length > 0 ? (
-                                dateFields.map((field) => (
-                                  <MenuItem key={field.field_id} value={field.field_id}>
+                                dateFields.map((field, index) => (
+                                  <MenuItem key={field.field_id || field.name || `backup-field-${index}`} value={field.field_id}>
                                     {field.name}
                                   </MenuItem>
                                 ))

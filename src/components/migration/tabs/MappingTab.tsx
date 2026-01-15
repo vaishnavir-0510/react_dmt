@@ -160,23 +160,35 @@ export const MappingTab: React.FC = () => {
     isFetching,
     refetch,
   } = useGetMappingDataQuery(
-    { sourceObjectId: selectedObject?.object_id || '' },
-    { skip: !selectedObject?.object_id }
+    { sourceObjectId: selectedObject?.object_id || '', environmentId: selectedEnvironment?.id },
+    { skip: !selectedObject?.object_id || !selectedEnvironment?.id }
   );
 
-  // Refetch data when object changes
+  // Reset state and refetch data when object or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
+      setTargetSystemId('');
+      setSelectedTargetObjectId('');
+      setSearchTerm('');
+      setMappings([]);
+      setEditState(null);
+      setAvailableTargetFields([]);
+      setTargetColumns([]);
+      setIsLoadingTargetColumns(false);
+      setIsMappingInProgress(false);
+      setCurrentTaskId('');
+      setPollingStartTime(0);
+      setSnackbar({ open: false, message: '', severity: 'info' });
       refetch();
     }
-  }, [selectedObject?.object_id, refetch]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, refetch]);
 
-  // Refresh activity status when tab is accessed
+  // Refresh activity status when tab is accessed or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       getActivityStatus(selectedObject.object_id);
     }
-  }, [selectedObject?.object_id, getActivityStatus]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, getActivityStatus]);
 
   // Get mapped target object for the source object from entity mapping API
   const {

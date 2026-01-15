@@ -27,16 +27,19 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../../../store';
 import { useGetTransformDataQuery } from '../../../services/transformApi';
 import { TransformSlideIn } from './TransformSlideIn';
+import { TransformRuleTimelineSlideIn } from './TransformRuleTimelineSlideIn';
 import { ToggleButton } from '../ToggleButton';
 import { useActivity } from '../ActivityProvider';
 
 
 export const TransformTab: React.FC = () => {
   const { selectedObject } = useSelector((state: RootState) => state.migration);
+  const { selectedEnvironment } = useSelector((state: RootState) => state.app);
   const { getReadOnlyFlag, getActivityStatus } = useActivity();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [transformSlideInOpen, setTransformSlideInOpen] = useState(false);
+  const [ruleTimelineSlideInOpen, setRuleTimelineSlideInOpen] = useState(false);
   const [taskMap, setTaskMap] = useState<Record<string, string>>({});
   
   const {
@@ -48,26 +51,30 @@ export const TransformTab: React.FC = () => {
   } = useGetTransformDataQuery(
     {
       objectId: selectedObject?.object_id || '',
+      environmentId: selectedEnvironment?.id,
       page: page + 1,
       pageSize: rowsPerPage
     },
-    { skip: !selectedObject?.object_id }
+    { skip: !selectedObject?.object_id || !selectedEnvironment?.id }
   );
 
-  // Refetch data when object changes
+  // Reset state and refetch data when object or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
-      setPage(0); // Reset to first page when object changes
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
+      setPage(0); // Reset to first page when object or environment changes
+      setRowsPerPage(10);
+      setTransformSlideInOpen(false);
+      setTaskMap({});
       refetch();
     }
-  }, [selectedObject?.object_id, refetch]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, refetch]);
 
-  // Refresh activity status when tab is accessed
+  // Refresh activity status when tab is accessed or environment changes
   useEffect(() => {
-    if (selectedObject?.object_id) {
+    if (selectedObject?.object_id && selectedEnvironment?.id) {
       getActivityStatus(selectedObject.object_id);
     }
-  }, [selectedObject?.object_id, getActivityStatus]);
+  }, [selectedObject?.object_id, selectedEnvironment?.id, getActivityStatus]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -84,9 +91,7 @@ export const TransformTab: React.FC = () => {
   };
 
   const handleShowRuleList = () => {
-    console.log('Showing rule list...');
-    // Implement rule list display logic here
-    alert('Showing transformation rules list');
+    setRuleTimelineSlideInOpen(true);
   };
 
   const handleRefresh = () => {
@@ -95,6 +100,10 @@ export const TransformTab: React.FC = () => {
 
   const handleCloseTransformSlideIn = () => {
     setTransformSlideInOpen(false);
+  };
+
+  const handleCloseRuleTimelineSlideIn = () => {
+    setRuleTimelineSlideInOpen(false);
   };
 
   const handleTaskStarted = (objectId: string, taskId: string) => {
@@ -331,6 +340,16 @@ export const TransformTab: React.FC = () => {
           objectName={selectedObject.object_name}
           onTaskStarted={handleTaskStarted}
           taskMap={taskMap}
+        />
+      )}
+
+      {/* Transform Rule Timeline Slide-in Modal */}
+      {selectedObject && (
+        <TransformRuleTimelineSlideIn
+          open={ruleTimelineSlideInOpen}
+          onClose={handleCloseRuleTimelineSlideIn}
+          objectId={selectedObject.object_id}
+          objectName={selectedObject.object_name}
         />
       )}
     </Box>

@@ -1,5 +1,6 @@
 // services/validateRuleApi.ts
 import { createApi, fetchBaseQuery, type FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
+import type { RootState } from '../store';
 
 interface ApplyValidateRuleRequest {
   change_log_id: number;
