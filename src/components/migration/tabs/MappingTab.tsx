@@ -29,6 +29,7 @@ import { useActivity } from '../ActivityProvider';
 import { useGetMappedTargetObjectQuery, useGetObjectMetadataQuery } from '../../../services/metadataApi';
 import { useGetObjectsBySystemQuery } from '../../../services/objectsApi';
 import { useGetSystemsByProjectQuery } from '../../../services/systemsApi';
+import { PicklistMappingSlideIn } from './PicklistMappingSlideIn';
 import {
   Download as DownloadIcon,
   AutoFixHigh as AutoFixIcon,
@@ -142,6 +143,13 @@ export const MappingTab: React.FC = () => {
     message: '',
     severity: 'info'
   });
+  const [picklistMappingOpen, setPicklistMappingOpen] = useState<boolean>(false);
+  const [selectedPicklistMapping, setSelectedPicklistMapping] = useState<{
+    sourceFieldId: string;
+    targetFieldId: string;
+    sourceFieldName: string;
+    targetFieldName: string;
+  } | null>(null);
 
   // Get all systems for the project to populate target system dropdown
   const { data: projectSystems = [] } = useGetSystemsByProjectQuery(
@@ -724,6 +732,18 @@ export const MappingTab: React.FC = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
+  const handlePicklistMapping = (mapping: MappingPair) => {
+    if (mapping.source_column && mapping.target_column) {
+      setSelectedPicklistMapping({
+        sourceFieldId: mapping.source_column,
+        targetFieldId: mapping.target_column || '',
+        sourceFieldName: mapping.sourceField,
+        targetFieldName: mapping.targetField
+      });
+      setPicklistMappingOpen(true);
+    }
+  };
+
   const hasTypeMismatch = (mapping: MappingPair) => {
     if (mapping.sourceIsPicklist !== mapping.targetIsPicklist) return true;
     if (mapping.sourceIsDate !== mapping.targetIsDate) return true;
@@ -1273,11 +1293,18 @@ export const MappingTab: React.FC = () => {
                           }} />
                         </Tooltip>
                       ) : (
-                        <Tooltip title={mapping.targetIsPicklist ? "Picklist field" : "Not a picklist"}>
-                          <TableIcon sx={{ 
-                            fontSize: 16,
-                            color: mapping.targetIsPicklist ? 'warning.main' : 'grey.300' 
-                          }} />
+                        <Tooltip title={mapping.targetIsPicklist ? "Click to configure picklist mapping" : "Not a picklist"}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handlePicklistMapping(mapping)}
+                            disabled={!mapping.targetIsPicklist}
+                            sx={{ p: 0.3 }}
+                          >
+                            <TableIcon sx={{ 
+                              fontSize: 16,
+                              color: mapping.targetIsPicklist ? 'warning.main' : 'grey.300' 
+                            }} />
+                          </IconButton>
                         </Tooltip>
                       )}
                     </Box>
@@ -1391,6 +1418,18 @@ export const MappingTab: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Picklist Mapping Slide-in */}
+      {selectedPicklistMapping && (
+        <PicklistMappingSlideIn
+          open={picklistMappingOpen}
+          onClose={() => setPicklistMappingOpen(false)}
+          sourceFieldId={selectedPicklistMapping.sourceFieldId}
+          targetFieldId={selectedPicklistMapping.targetFieldId}
+          sourceFieldName={selectedPicklistMapping.sourceFieldName}
+          targetFieldName={selectedPicklistMapping.targetFieldName}
+        />
+      )}
     </Box>
   );
 };

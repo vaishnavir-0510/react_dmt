@@ -384,8 +384,7 @@ export const ErrorTab: React.FC = () => {
     try {
       const result = await downloadErrorCsv({
         errorId: record.id,
-        objectId,
-        iterationId: record.iteration_reference
+        objectId
       }).unwrap();
 
       // Assuming the API returns a file URL or blob, handle download

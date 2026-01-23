@@ -40,12 +40,12 @@ import { errorApi } from '../services/errorApi';
 import { odfFileApi } from '../services/odfFileApi';
 import { pipelineApi } from '../services/pipelineApi';
 import { lookupApi } from '../services/lookupApi';
-
 import { estimatorApi } from '../services/estimatorApi';
 import { dashboardApi } from '../services/dashboardApi';
 import { activityApi } from '../services/activityApi';
 import { securityPoliciesApi } from '../services/securityPoliciesApi';
 import { revealApi } from '../services/revealApi';
+import { picklistApi } from '../services/picklistApi';
 
 export const store = configureStore({
   reducer: {
@@ -85,6 +85,7 @@ export const store = configureStore({
     [activityApi.reducerPath]: activityApi.reducer,
     [securityPoliciesApi.reducerPath]: securityPoliciesApi.reducer,
     [revealApi.reducerPath]: revealApi.reducer,
+    [picklistApi.reducerPath]: picklistApi.reducer,
 
   },
   middleware: (getDefaultMiddleware) =>
@@ -126,15 +127,9 @@ export const store = configureStore({
       activityApi.middleware,
        securityPoliciesApi.middleware,
        revealApi.middleware,
-
-    ),
-
+       picklistApi.middleware
+    )
 });
-
-
-// export type RootState = ReturnType<typeof store.getState>;
-// export type AppDispatch = typeof store.dispatch;
-export const useAppDispatch = () => useDispatch<AppDispatch>();
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
