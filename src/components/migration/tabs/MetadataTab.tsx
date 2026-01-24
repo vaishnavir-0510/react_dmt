@@ -619,11 +619,11 @@ export const MetadataTab: React.FC = () => {
     }
 
     return (
-      <Paper elevation={1} sx={{ width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <Paper elevation={1} sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ 
           maxHeight: '60vh', 
           overflowY: 'auto', 
-          overflowX: 'hidden', 
+          overflowX: 'auto', 
           width: '100%',
           flex: 1,
           display: 'flex',
@@ -857,7 +857,7 @@ export const MetadataTab: React.FC = () => {
   const error = sourceMetadataError || (activeTab === 1 && targetMetadataError);
 
   return (
-    <Box sx={{ width: '100%', overflowX: 'hidden' }}>
+    <Box sx={{ width: '100%' }}>
       {/* Success Snackbar */}
       <Snackbar
         open={saveSuccess}
@@ -875,8 +875,7 @@ export const MetadataTab: React.FC = () => {
         gap: 2,
         width: '100%',
         maxWidth: '100%',
-        boxSizing: 'border-box',
-        overflow: 'hidden'
+        boxSizing: 'border-box'
       }}>
         <Box sx={{ 
           flex: '1 1 auto', 
@@ -931,8 +930,7 @@ export const MetadataTab: React.FC = () => {
         mb: 3, 
         width: '100%', 
         maxWidth: '100%',
-        boxSizing: 'border-box',
-        overflow: 'hidden'
+        boxSizing: 'border-box'
       }}>
         <Grid container spacing={2} sx={{ width: '100%', margin: 0 }}>
           <Grid item xs={12} md={6} sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
@@ -1011,7 +1009,7 @@ export const MetadataTab: React.FC = () => {
       </Box>
 
       {/* Tabs for Source/Target */}
-      <Paper elevation={1} sx={{ mb: 2, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+      <Paper elevation={1} sx={{ mb: 2, width: '100%', maxWidth: '100%' }}>
         <Tabs
           value={activeTab}
           onChange={handleTabChange}

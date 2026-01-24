@@ -108,7 +108,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', overflowX: 'hidden' }}>
       <Header />
       
       {/* Render the appropriate sidebar */}
@@ -120,13 +120,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           flexGrow: 1,
           p: 3,
           width: '100%',
+          overflowX: 'hidden',
           transition: (theme) => theme.transitions.create(['margin'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),
         }}
       >
-        <Box sx={{ mt: 8 }}>
+        <Box sx={{ mt: 8, overflowX: 'hidden' }}>
           {children}
         </Box>
       </Box>

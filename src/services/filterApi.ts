@@ -2,6 +2,43 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { FilterDataRecord, FilterDataResponse } from '../types';
 
+export interface AppliedFilter {
+  object_id: string;
+  values: string | null;
+  from_date: string | null;
+  is_deleted: boolean;
+  to_date: string | null;
+  is_applied: boolean;
+  from_range: string | null;
+  autofilter: boolean;
+  order: number;
+  to_range: string | null;
+  created_by: string;
+  dmt_filter: string;
+  ref_obj_id: string | null;
+  modified_by: string;
+  type: string;
+  ref_field: string | null;
+  created_date: string;
+  field: string;
+  ref_type: string | null;
+  modified_date: string;
+}
+
+export interface CreateFilterPayload {
+  type: string;
+  field: string;
+  object_id: string;
+  from_date?: string | null;
+  from_range?: string | null;
+  ref_field?: string;
+  ref_obj_id?: string;
+  ref_type?: string;
+  to_date?: string | null;
+  to_range?: string | null;
+  values?: string[];
+}
+
 export const filterApi = createApi({
   reducerPath: 'filterApi',
   baseQuery: fetchBaseQuery({
@@ -15,7 +52,7 @@ export const filterApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['FilterData'],
+  tagTypes: ['FilterData', 'AppliedFilters'],
   endpoints: (builder) => ({
     getFilterData: builder.query<FilterDataResponse, {
       objectId: string;
@@ -51,7 +88,43 @@ export const filterApi = createApi({
       }),
       invalidatesTags: ['FilterData'],
     }),
+    createFilter: builder.mutation<any, CreateFilterPayload>({
+      query: (body) => ({
+        url: '/management/v2/filter',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['AppliedFilters'],
+    }),
+    applyFilter: builder.mutation<{ message: string }, { object_id: string }>({
+      query: ({ object_id }) => ({
+        url: `/management/v2/filter_apply?object_id=${object_id}`,
+        method: 'POST',
+        body: {},
+      }),
+      invalidatesTags: ['FilterData', 'AppliedFilters'],
+    }),
+    getAppliedFilters: builder.query<AppliedFilter[], string>({
+      query: (objectId) => `/management/v2/filter/${objectId}`,
+      providesTags: ['AppliedFilters'],
+    }),
+    updateFilter: builder.mutation<any, { filterId: string; payload: CreateFilterPayload }>({
+      query: ({ filterId, payload }) => ({
+        url: `/management/v2/filter/${filterId}`,
+        method: 'PUT',
+        body: payload,
+      }),
+      invalidatesTags: ['AppliedFilters'],
+    }),
+    deleteFilters: builder.mutation<{ message: string; deleted_count: number }, string[]>({
+      query: (filterIds) => ({
+        url: '/management/v2/filters',
+        method: 'DELETE',
+        body: filterIds,
+      }),
+      invalidatesTags: ['FilterData', 'AppliedFilters'],
+    }),
   }),
 });
 
-export const { useGetFilterDataQuery, useRemoveColumnsMutation } = filterApi;
+export const { useGetFilterDataQuery, useRemoveColumnsMutation, useCreateFilterMutation, useApplyFilterMutation, useGetAppliedFiltersQuery, useUpdateFilterMutation, useDeleteFiltersMutation } = filterApi;

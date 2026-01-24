@@ -25,6 +25,7 @@ import {
   Tabs,
   List,
   ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
 } from '@mui/material';
@@ -121,6 +122,7 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
   isLoading = false,
 }) => {
   const [activeTab, setActiveTab] = useState(0);
+  const [selectedSection, setSelectedSection] = useState<string>('');
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [originalData, setOriginalData] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -131,6 +133,7 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
   const [pendingDataTypeChange, setPendingDataTypeChange] = useState<string | null>(null);
   const [rejectionMode, setRejectionMode] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
+  const [dataTypeChangeWarning, setDataTypeChangeWarning] = useState(false);
   const { selectedProject } = useSelector((state: RootState) => state.app);
 
   // Ontology hooks
@@ -144,19 +147,19 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
     if (open && field) {
       const initialData: Record<string, any> = {};
       const fieldDataType = field.datatype || 'string';
-      
+
       // Initialize all configurable fields from metadataConfig
       Object.values(metadataConfig).forEach(config => {
         if (!config.hidden) {
           const fieldValue = field[config.name];
-          initialData[config.name] = fieldValue !== undefined && fieldValue !== null 
-            ? fieldValue 
-            : config.default_value !== undefined 
-              ? config.default_value 
+          initialData[config.name] = fieldValue !== undefined && fieldValue !== null
+            ? fieldValue
+            : config.default_value !== undefined
+              ? config.default_value
               : '';
         }
       });
-      
+
       setFormData(initialData);
       setOriginalData(initialData);
       setCurrentDataType(fieldDataType);
@@ -164,12 +167,25 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
       setEditingField(null);
       setModifiedFields({});
       setPendingDataTypeChange(null);
+
+      // Set default selected section to first available section
+      const tab = activeTab === 0 ? 'General' : 'Analytical';
+      const sections = getSectionsForTab(tab, fieldDataType);
+      if (sections.length > 0 && !selectedSection) {
+        setSelectedSection(sections[0]);
+      }
     }
-  }, [open, field]);
+  }, [open, field, activeTab, selectedSection]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
     setEditingField(null);
+    // Reset selected section when changing tabs
+    const tab = newValue === 0 ? 'General' : 'Analytical';
+    const sections = getSectionsForTab(tab, currentDataType);
+    if (sections.length > 0) {
+      setSelectedSection(sections[0]);
+    }
   };
 
   const getDropdownOptions = (config: any, currentValue: any): string[] => {
@@ -218,7 +234,19 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
     }
 
     if (fieldName === 'datatype') {
+      // If there's already a pending change and user tries to select another datatype, show warning
+      if (pendingDataTypeChange && pendingDataTypeChange !== value) {
+        setDataTypeChangeWarning(true);
+        setTimeout(() => setDataTypeChangeWarning(false), 5000); // Hide after 5 seconds
+        return;
+      }
       setPendingDataTypeChange(value);
+      // Update selected section when data type changes to ensure relevant sections are shown
+      const tab = activeTab === 0 ? 'General' : 'Analytical';
+      const sections = getSectionsForTab(tab, value);
+      if (sections.length > 0 && !sections.includes(selectedSection)) {
+        setSelectedSection(sections[0]);
+      }
     }
   };
 
@@ -336,6 +364,13 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
       resetDependentFields(value, formData);
       setCurrentDataType(value);
       setPendingDataTypeChange(null);
+
+      // Update selected section after data type change is confirmed
+      const tab = activeTab === 0 ? 'General' : 'Analytical';
+      const sections = getSectionsForTab(tab, value);
+      if (sections.length > 0 && !sections.includes(selectedSection)) {
+        setSelectedSection(sections[0]);
+      }
     }
 
     const fieldPayload = {
@@ -434,9 +469,12 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
     const isEditing = editingField === config.name;
     const isEditable = config.permission === 'W' && (isEditing || activeTab === 1);
 
-    const showDataTypeWarning = pendingDataTypeChange && 
-      config.name !== 'datatype' && 
-      !config.applicable_for_dt.includes('all') && 
+    // Disable all fields except datatype when there's a pending data type change
+    const isDisabledByPendingDataType = !!(pendingDataTypeChange && config.name !== 'datatype');
+
+    const showDataTypeWarning = pendingDataTypeChange &&
+      config.name !== 'datatype' &&
+      !config.applicable_for_dt.includes('all') &&
       !config.applicable_for_dt.includes(pendingDataTypeChange);
 
     switch (config.ui_control) {
@@ -457,10 +495,10 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
                 )}
               </Typography>
             </Box>
-            <FormControl 
-              size="small" 
+            <FormControl
+              size="small"
               error={!!error}
-              disabled={!isEditable}
+              disabled={!isEditable || isDisabledByPendingDataType}
               sx={{ minWidth: 250, flexGrow: 1 }}
             >
               <Select
@@ -487,10 +525,11 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
             {config.permission === 'W' && activeTab === 0 && (
               <>
                 {!isEditing ? (
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => handleEditStart(config.name)}
-                    sx={{ color: '#1976d2' }}
+                    disabled={isDisabledByPendingDataType}
+                    sx={{ color: isDisabledByPendingDataType ? '#ccc' : '#1976d2' }}
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -537,7 +576,7 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
                 type="checkbox"
                 checked={!!value}
                 onChange={(e) => handleSwitchChange(config.name)({ target: { checked: e.target.checked } } as any)}
-                disabled={!isEditable}
+                disabled={!isEditable || isDisabledByPendingDataType}
                 className="metadata-checkbox"
                 title={config.label}
                 placeholder={config.label}
@@ -549,10 +588,11 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
             {config.permission === 'W' && activeTab === 0 && (
               <>
                 {!isEditing ? (
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => handleEditStart(config.name)}
-                    sx={{ color: '#1976d2' }}
+                    disabled={isDisabledByPendingDataType}
+                    sx={{ color: isDisabledByPendingDataType ? '#ccc' : '#1976d2' }}
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -600,7 +640,7 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
               onChange={handleInputChange(config.name)}
               error={!!error}
               helperText={error}
-              disabled={!isEditable}
+              disabled={!isEditable || isDisabledByPendingDataType}
               multiline
               rows={3}
               sx={{ minWidth: 250, flexGrow: 1, bgcolor: 'background.paper' }}
@@ -608,10 +648,11 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
             {config.permission === 'W' && activeTab === 0 && (
               <>
                 {!isEditing ? (
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => handleEditStart(config.name)}
-                    sx={{ color: '#1976d2', mt: 1 }}
+                    disabled={isDisabledByPendingDataType}
+                    sx={{ color: isDisabledByPendingDataType ? '#ccc' : '#1976d2', mt: 1 }}
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -660,17 +701,18 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
               onChange={handleInputChange(config.name)}
               error={!!error}
               helperText={error}
-              disabled={!isEditable}
+              disabled={!isEditable || isDisabledByPendingDataType}
               type={config.data_type === 'Integer' || config.data_type === 'Float' ? 'number' : 'text'}
               sx={{ minWidth: 250, flexGrow: 1, bgcolor: 'background.paper' }}
             />
             {config.permission === 'W' && activeTab === 0 && (
               <>
                 {!isEditing ? (
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => handleEditStart(config.name)}
-                    sx={{ color: '#1976d2' }}
+                    disabled={isDisabledByPendingDataType}
+                    sx={{ color: isDisabledByPendingDataType ? '#ccc' : '#1976d2' }}
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -701,41 +743,76 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
     }
   };
 
-  const renderSection = (section: string, tab: 'General' | 'Analytical') => {
+  const renderSectionFields = (section: string, tab: 'General' | 'Analytical') => {
     const fields = getFieldConfigsBySection(section, tab);
-    
+
     if (fields.length === 0) return null;
 
     return (
-      <Box 
-        key={section}
-        sx={{ 
-          border: '1px solid #e0e0e0',
-          mb: 2,
-          bgcolor: 'white'
-        }}
-      >
-        <Box
-          sx={{ 
-            bgcolor: '#f5f5f5',
-            p: 2,
-            borderBottom: '1px solid #e0e0e0'
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {SECTION_ICONS[section] || <InfoOutlinedIcon />}
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>
-              {section}
-            </Typography>
+      <Box sx={{ p: 2 }}>
+        {fields.map((config) => (
+          <Box key={config.name}>
+            {renderFieldControl(config)}
           </Box>
-        </Box>
-        <Box sx={{ p: 2 }}>
-          {fields.map((config) => (
-            <Box key={config.name}>
-              {renderFieldControl(config)}
-            </Box>
+        ))}
+      </Box>
+    );
+  };
+
+  const renderSectionList = (sections: string[], tab: 'General' | 'Analytical') => {
+    // Use effective data type for filtering sections
+    const effectiveDataType = pendingDataTypeChange || currentDataType;
+    const filteredSections = sections.filter(section => {
+      const fields = getFieldConfigsBySection(section, tab);
+      return fields.length > 0;
+    });
+
+    return (
+      <Box sx={{ width: '190px', borderRight: '1px solid #e0e0e0', bgcolor: '#f9f9f9' }}>
+        <Typography variant="h6" sx={{ p: 2, fontWeight: 600, bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
+          Sections
+        </Typography>
+        <List sx={{ py: 0 }}>
+          {filteredSections.map((section, index) => (
+            <React.Fragment key={section}>
+              <ListItem
+                sx={{
+                  borderBottom: '1px solid #e0e0e0',
+                  cursor: pendingDataTypeChange ? 'not-allowed' : 'pointer',
+                  opacity: pendingDataTypeChange ? 0.5 : 1,
+                }}
+              >
+                <ListItemButton
+                  selected={selectedSection === section}
+                  onClick={() => !pendingDataTypeChange && setSelectedSection(section)}
+                  disabled={!!pendingDataTypeChange}
+                  sx={{
+                    '&.Mui-selected': {
+                      bgcolor: '#e3f2fd',
+                      '&:hover': {
+                        bgcolor: '#e3f2fd',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: '40px' }}>
+                    {SECTION_ICONS[section] || <InfoOutlinedIcon />}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={section}
+                    primaryTypographyProps={{
+                      variant: 'body2',
+                      fontWeight: selectedSection === section ? 600 : 400,
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+              {index < filteredSections.length - 1 && (
+                <Divider sx={{ bgcolor: '#e0e0e0', height: '1px' }} />
+              )}
+            </React.Fragment>
           ))}
-        </Box>
+        </List>
       </Box>
     );
   };
@@ -887,6 +964,30 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
             Use this window to view and modify the metadata associated with the selected data column.
           </Typography>
 
+          {/* Data Type Change Warning */}
+          {pendingDataTypeChange && (
+            <Alert
+              severity="warning"
+              sx={{
+                m: 2,
+                borderRadius: 1,
+                '& .MuiAlert-message': {
+                  width: '100%'
+                }
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Data Type Change Pending
+              </Typography>
+              <Typography variant="body2">
+                You have selected a new data type ({pendingDataTypeChange}). All other fields are disabled until you save or cancel this change.
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                <strong>Current data type:</strong> {currentDataType} → <strong>New data type:</strong> {pendingDataTypeChange}
+              </Typography>
+            </Alert>
+          )}
+
           {/* Tabs */}
           <Box sx={{ borderBottom: '1px solid #e0e0e0', bgcolor: 'white' }}>
             <Tabs 
@@ -916,20 +1017,36 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
           </Box>
 
           {/* Tab Content */}
-          <Box sx={{ flexGrow: 1, overflow: 'auto', bgcolor: '#fafafa' }}>
+          <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
             <TabPanel value={activeTab} index={0}>
-              <Box sx={{ p: 2 }}>
-                {generalSections.map(section => 
-                  renderSection(section, 'General')
-                )}
+              <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
+                {renderSectionList(generalSections, 'General')}
+                <Box sx={{ flexGrow: 1, overflow: 'auto', bgcolor: '#fafafa' }}>
+                  {selectedSection && (
+                    <Box sx={{ p: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#1565c0' }}>
+                        {selectedSection}
+                      </Typography>
+                      {renderSectionFields(selectedSection, 'General')}
+                    </Box>
+                  )}
+                </Box>
               </Box>
             </TabPanel>
 
             <TabPanel value={activeTab} index={1}>
-              <Box sx={{ p: 2 }}>
-                {analyticalSections.map(section => 
-                  renderSection(section, 'Analytical')
-                )}
+              <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
+                {renderSectionList(analyticalSections, 'Analytical')}
+                <Box sx={{ flexGrow: 1, overflow: 'auto', bgcolor: '#fafafa' }}>
+                  {selectedSection && (
+                    <Box sx={{ p: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#1565c0' }}>
+                        {selectedSection}
+                      </Typography>
+                      {renderSectionFields(selectedSection, 'Analytical')}
+                    </Box>
+                  )}
+                </Box>
               </Box>
             </TabPanel>
           </Box>
@@ -942,6 +1059,26 @@ export const MetadataEditorSlideIn: React.FC<MetadataEditorSlideInProps> = ({
         onClose={() => setShowSaveSuccess(false)}
         message="Field metadata updated successfully!"
       />
+
+      <Snackbar
+        open={dataTypeChangeWarning}
+        autoHideDuration={5000}
+        onClose={() => setDataTypeChangeWarning(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setDataTypeChangeWarning(false)}
+          severity="warning"
+          sx={{ width: '100%' }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Cannot Change Data Type
+          </Typography>
+          <Typography variant="body2">
+            You already have a pending data type change. Please save or cancel the current change before selecting a different data type.
+          </Typography>
+        </Alert>
+      </Snackbar>
     </>
   );
 };

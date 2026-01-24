@@ -156,14 +156,23 @@ export const TransformTab: React.FC = () => {
   const columns = records.length > 0 ? Object.keys(records[0]) : [];
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%' }}>
       {/* Header Section */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
         <Typography variant="h5" gutterBottom fontWeight="bold">
           Data Transformation - {selectedObject.object_name}
         </Typography>
         
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' }, 
+          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          gap: 2, 
+          flexWrap: 'wrap',
+          width: '100%',
+          justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+          boxSizing: 'border-box'
+        }}>
           <ToggleButton
             activity="Transform"
             disabled={false}
@@ -245,7 +254,7 @@ export const TransformTab: React.FC = () => {
       )}
 
       {/* Data Table */}
-      <TableContainer component={Paper} elevation={2}>
+      <TableContainer component={Paper} elevation={2} sx={{ overflowX: 'auto' }}>
         <Table sx={{ minWidth: 650 }} aria-label="transformation data table" size="small">
           <TableHead>
             <TableRow sx={{ backgroundColor: 'primary.light' }}>

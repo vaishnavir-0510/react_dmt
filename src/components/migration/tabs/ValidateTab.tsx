@@ -386,8 +386,8 @@ export const ValidateTab: React.FC = () => {
           </Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} elevation={2}>
-          <Table sx={{ minWidth: 650 }} aria-label="validate data table">
+        <TableContainer component={Paper} elevation={2} sx={{ overflowX: 'auto' }}>
+          <Table sx={{ tableLayout: 'auto', width: 'max-content', minWidth: '100%' }} aria-label="validate data table">
             <TableHead>
               <TableRow sx={{ backgroundColor: 'primary.light' }}>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>

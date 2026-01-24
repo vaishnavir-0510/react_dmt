@@ -15,6 +15,7 @@ import {
   useCreateRevealMutation,
   useUpdateRevealMutation,
 } from '../../services/revealApi';
+import { FilesSlideIn } from './FilesSlideIn';
 
 export const MigrationLayout: React.FC = () => {
   const dispatch = useDispatch();
@@ -27,6 +28,9 @@ export const MigrationLayout: React.FC = () => {
   // Reveal functionality state
   const [revealStates, setRevealStates] = useState<Record<string, boolean>>({});
   const [isRevealLoading, setIsRevealLoading] = useState<boolean>(false);
+
+  // Files slide-in state
+  const [filesSlideInOpen, setFilesSlideInOpen] = useState<boolean>(false);
 
   const isRevealActive = selectedObject?.object_id ? revealStates[selectedObject.object_id] || false : false;
 
@@ -205,16 +209,17 @@ export const MigrationLayout: React.FC = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ flexGrow: 1, overflowX: 'hidden' }}>
       {/* Header Section */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, overflowX: 'hidden', width: '100%' }}>
         <Typography variant="h4" component="h1" fontWeight="bold">
           Migration - {selectedObject.object_name}
         </Typography>
         <IconButton
           color="primary"
-          title="File"
+          title="View files"
           size="small"
+          onClick={() => setFilesSlideInOpen(true)}
         >
           <FileIcon />
         </IconButton>
@@ -248,6 +253,14 @@ export const MigrationLayout: React.FC = () => {
       <ActivityProvider>
         <MigrationTabs objectId={objectId} isRevealActive={isRevealActive} />
       </ActivityProvider>
+
+      {/* Files Slide-in */}
+      <FilesSlideIn
+        open={filesSlideInOpen}
+        onClose={() => setFilesSlideInOpen(false)}
+        objectName={selectedObject?.object_name}
+        objectId={selectedObject?.object_id}
+      />
     </Box>
   );
 };

@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
-import { useGetPlanEstimatorQuery, useUpdatePlanEstimatorMutation } from '../../services/planEstimatorApi';
+import { useGetPlanEstimatorQuery, useUpdatePlanEstimatorMutation, useUpdatePlanDatesMutation } from '../../services/planEstimatorApi';
 
 interface PlanEstimator {
   id: string;
@@ -149,6 +149,7 @@ export const PlanningSection: React.FC = () => {
   } = useGetPlanEstimatorQuery();
 
   const [updatePlanEstimator] = useUpdatePlanEstimatorMutation();
+  const [updatePlanDates] = useUpdatePlanDatesMutation();
 
   const handleGenerateEfforts = async () => {
     if (!selectedProject) {
@@ -199,15 +200,16 @@ export const PlanningSection: React.FC = () => {
 
   const handleSaveDates = async (startDate: string, endDate: string) => {
     try {
-      // Here you would call an API to update the specific plan item
-      // For now, we'll just show a success message
-      console.log('Saving dates:', { startDate, endDate, planId: editDialog.planId });
-      
+      await updatePlanDates({
+        planId: editDialog.planId,
+        startDate,
+        endDate,
+      }).unwrap();
+
       setShowSuccess(true);
       setShowError('');
-      
-      // Refetch data to get updated values
-      await refetchPlanData();
+
+      // Data will be automatically refetched due to invalidatesTags
     } catch (error) {
       console.error('Failed to update dates:', error);
       setShowError('Failed to update dates. Please try again.');

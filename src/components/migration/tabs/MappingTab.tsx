@@ -904,9 +904,9 @@ export const MappingTab: React.FC = () => {
           </Button>
         </Paper>
       ) : (
-        <Box>
+        <Box sx={{ overflowX: 'auto' }}>
           {/* Table Header */}
-          <Paper elevation={1} sx={{ mb: 1 }}>
+          <Paper elevation={1} sx={{ mb: 1, minWidth: 'max-content' }}>
             <Box sx={{ 
               display: 'flex', 
               p: 1.5, 
@@ -954,7 +954,7 @@ export const MappingTab: React.FC = () => {
           </Paper>
 
           {/* Mapping Rows */}
-          <Box>
+          <Box sx={{ minWidth: 'max-content' }}>
             {filteredMappings.map((mapping, index) => {
               const isEditing = editState?.id === mapping.id;
               const hasMismatch = hasTypeMismatch(mapping);

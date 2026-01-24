@@ -314,7 +314,7 @@ export const WorkflowsTab: React.FC = () => {
               </Typography>
             </Box>
           ) : (
-            <TableContainer>
+            <TableContainer sx={{ overflowX: 'auto' }}>
               <Table>
                 <TableHead>
                   <TableRow>
@@ -415,7 +415,7 @@ export const WorkflowsTab: React.FC = () => {
                   </Typography>
                 </Box>
               ) : (
-                <TableContainer>
+                <TableContainer sx={{ overflowX: 'auto' }}>
                   <Table>
                     <TableHead>
                       <TableRow>

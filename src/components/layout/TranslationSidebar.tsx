@@ -25,31 +25,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 const translationMenuItems = [
   {
-    text: 'Translation Dashboard',
+    text: 'Dashboard',
     icon: <TranslateIcon />,
     path: '/translation/dashboard',
     menuKey: 'translation dashboard'
   },
   {
-    text: 'Language Packs',
-    icon: <LanguageIcon />,
-    path: '/translation/languages',
-    menuKey: 'language packs'
-  },
-  {
-    text: 'Translation Memory',
-    icon: <LibraryIcon />,
-    path: '/translation/memory',
-    menuKey: 'translation memory'
-  },
-  {
-    text: 'Progress Tracking',
-    icon: <TimelineIcon />,
-    path: '/translation/progress',
-    menuKey: 'progress tracking'
-  },
-  {
-    text: 'Translations',
+    text: 'Translation',
     icon: <TranslateIcon />,
     path: '/translation/translations',
     menuKey: 'translations'

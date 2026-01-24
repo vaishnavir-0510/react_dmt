@@ -6,12 +6,6 @@ import {
   Typography,
   Box,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   InputAdornment,
   CircularProgress,
@@ -32,6 +26,7 @@ import { useGetFilterDataQuery } from '../../../services/filterApi';
 import type { FilterDataRecord } from '../../../types';
 import { ToggleButton } from '../ToggleButton';
 import { useActivity } from '../ActivityProvider';
+import { FilterTable } from './index';
 import { FilterColumnsSlideIn } from './FilterColumnsSlideIn';
 import { FilterRowsSlideIn } from './FilterRowsSlideIn';
 
@@ -193,24 +188,6 @@ export const FilterTab: React.FC = () => {
     }
   }, [allColumns, originalAllColumns.length]);
 
-  // Highlight text in cells that match search term
-  const highlightText = (text: string | number | null | undefined, searchTerm: string) => {
-    if (!searchTerm || text == null) return text?.toString() || '-';
-
-    const textStr = text.toString();
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
-    const parts = textStr.split(regex);
-
-    return parts.map((part, index) =>
-      regex.test(part) ? (
-        <span key={index} style={{ backgroundColor: '#fff3cd', fontWeight: 'bold' }}>
-          {part}
-        </span>
-      ) : (
-        part
-      )
-    );
-  };
 
   if (!selectedObject) {
     return (
@@ -225,41 +202,26 @@ export const FilterTab: React.FC = () => {
     );
   }
 
-  if (isLoading) {
-    return (
-      <Box>
-        <Typography variant="h5" gutterBottom fontWeight="bold">
-          Data Filtering - {selectedObject.object_name}
-        </Typography>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-          <CircularProgress />
-        </Box>
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box>
-        <Typography variant="h5" gutterBottom fontWeight="bold">
-          Data Filtering - {selectedObject.object_name}
-        </Typography>
-        <Alert severity="error">
-          Failed to load filter data. Please try again later.
-        </Alert>
-      </Box>
-    );
-  }
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       {/* Header Section */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
         <Typography variant="h5" gutterBottom fontWeight="bold">
           Data Filtering - {selectedObject.object_name}
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' }, 
+          gap: 1, 
+          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          flexWrap: 'wrap', 
+          width: '100%',
+          maxWidth: '100%',
+          justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+          boxSizing: 'border-box'
+        }}>
            <ToggleButton
              activity="Filter"
              disabled={getCompletionStatus('Mapping')}
@@ -298,7 +260,11 @@ export const FilterTab: React.FC = () => {
                  </InputAdornment>
                ),
              }}
-             sx={{ minWidth: { xs: '200px', sm: '250px' } }}
+             sx={{ 
+               minWidth: { xs: '200px', sm: '250px' },
+               flexGrow: 1,
+               maxWidth: { xs: '100%', sm: '300px' }
+             }}
            />
 
            {/* Refresh Button */}
@@ -363,57 +329,24 @@ export const FilterTab: React.FC = () => {
       )}
 
       {/* Data Table */}
-      <TableContainer component={Paper} elevation={2} ref={tableRef} sx={{ maxHeight: '60vh', overflow: 'auto' }}>
-          <Table sx={{ minWidth: 650, tableLayout: 'fixed' }} aria-label="filter data table" size="small">
-          <TableHead sx={{ position: 'sticky', top: 0, backgroundColor: 'background.paper', zIndex: 1 }}>
-            <TableRow sx={{ backgroundColor: 'primary.light' }}>
-              {columns.map((column) => (
-                <TableCell
-                  key={column}
-                  sx={{
-                    color: 'white',
-                    fontWeight: 'bold',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {column}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {records.map((record: FilterDataRecord, index: number) => (
-              <TableRow
-                key={index}
-                data-row-index={index}
-                sx={{
-                  '&:last-child td, &:last-child th': { border: 0 },
-                  '&:hover': {
-                    backgroundColor: 'action.hover',
-                  },
-                  ...(highlightedRow === index && {
-                    backgroundColor: '#fff3cd',
-                    border: '2px solid #ffc107',
-                  }),
-                }}
-              >
-                {columns.map((column) => (
-                  <TableCell
-                    key={column}
-                    sx={{
-                      width: '200px',
-                      wordWrap: 'break-word'
-                    }}
-                    title={record[column]?.toString() || '-'}
-                  >
-                    {highlightText(record[column], searchTerm)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        </TableContainer>
+      <Box ref={tableRef} sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+        {isLoading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Alert severity="error">
+            Failed to load filter data. Please try again later.
+          </Alert>
+        ) : (
+          <FilterTable
+            records={records}
+            columns={columns}
+            searchTerm={searchTerm}
+            highlightedRow={highlightedRow}
+          />
+        )}
+      </Box>
 
       {/* Pagination */}
       {filterData && (
@@ -445,7 +378,7 @@ export const FilterTab: React.FC = () => {
       )}
 
       {/* Empty State */}
-      {records.length === 0 && !isLoading && (
+      {records.length === 0 && !isLoading && !error && (
         <Paper elevation={1} sx={{ p: 3, mt: 2 }}>
           <Typography variant="body1" textAlign="center" color="text.secondary">
             No filter data found for this object.
@@ -471,6 +404,7 @@ export const FilterTab: React.FC = () => {
         objectId={selectedObject?.object_id || ''}
         rowFilters={rowFilters}
         onRowFiltersChange={setRowFilters}
+        refetch={refetch}
       />
     </Box>
   );

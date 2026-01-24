@@ -153,24 +153,21 @@ export const EstimationCalculator: React.FC = () => {
     setCurrentProcessingIndex(-1);
 
     try {
-      // 1. Collect modified activities
-      const modifiedActivities = estimatorData.filter(activity =>
-        sliderStates[activity.activity]?.isModified
-      );
+      // 1. Collect activities that need to be processed
+      // - Activities with project_est_data = false (need to be created)
+      // - Activities with project_est_data = true that are modified (need to be updated)
+      const activitiesToProcess = estimatorData.filter(activity => {
+        const isNewActivity = !activity.project_est_data; // project_est_data is false
+        const isModified = sliderStates[activity.activity]?.isModified;
 
-      if (modifiedActivities.length === 0) {
-        // Check if any activity has project_est_data = false (new project estimation)
-        const hasNewEstimations = estimatorData.some(activity => !activity.project_est_data);
-        
-        if (!hasNewEstimations) {
-          setShowError('No changes detected. Please modify at least one slider.');
-          setIsCalculating(false);
-          return;
-        }
-        // If there are new estimations, we need to process all activities
+        return isNewActivity || isModified;
+      });
+
+      if (activitiesToProcess.length === 0) {
+        setShowError('No changes detected. Please modify at least one slider.');
+        setIsCalculating(false);
+        return;
       }
-
-      const activitiesToProcess = modifiedActivities.length > 0 ? modifiedActivities : estimatorData;
       const accountId = account?.id || '41d4357c-10c9-4048-9d31-595386c68f06';
       const userId = '877ee3bd-de6e-4b74-9328-c37bbc63d123';
 
@@ -229,7 +226,7 @@ export const EstimationCalculator: React.FC = () => {
       if (successfulUpdates === activitiesToProcess.length) {
         setShowSuccess(true);
       } else if (successfulUpdates > 0) {
-        setShowError(`Partially completed: ${successfulUpdates}/${activitiesToProcess.length} updates successful.`);
+        setShowError(`Partially completed: ${successfulUpdates}/${activitiesToProcess.length} activities processed successfully.`);
       } else {
         setShowError('All updates failed. Please try again.');
       }
@@ -282,34 +279,34 @@ export const EstimationCalculator: React.FC = () => {
           const isCurrentlyProcessing = currentProcessingIndex === index;
 
           return (
-            <Grid container spacing={4} alignItems="center" key={activity.id} sx={{ mb: 3 }}>
-              {/* Activity Name & Icon */}
-              <Grid item xs={2.5}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography sx={{ color: '#666', fontSize: '0.95rem', minWidth: '100px' }}>
-                    {activity.name}
-                  </Typography>
-                  {isLoading ? (
-                    <CircularProgress size={16} />
-                  ) : hasError ? (
-                    <EditIcon sx={{ color: '#f44336', fontSize: 20 }} />
-                  ) : isModified ? (
-                    <EditIcon sx={{ color: PRIMARY_BLUE, fontSize: 20 }} />
-                  ) : (
-                    <CheckCircleIcon sx={{ color: '#4caf50', fontSize: 20 }} />
-                  )}
-                </Box>
-              </Grid>
+            <Grid container spacing={2} alignItems="center" key={activity.id} sx={{ mb: 3 }}>
+               {/* Activity Name & Icon */}
+               <Grid item xs={3.5} sm={3} md={2.5}>
+                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                   {isLoading ? (
+                     <CircularProgress size={16} />
+                   ) : hasError ? (
+                     <EditIcon sx={{ color: '#f44336', fontSize: 18 }} />
+                   ) : isModified ? (
+                     <EditIcon sx={{ color: PRIMARY_BLUE, fontSize: 18 }} />
+                   ) : (
+                     <CheckCircleIcon sx={{ color: '#4caf50', fontSize: 18 }} />
+                   )}
+                   <Typography sx={{ color: '#666', fontSize: '0.85rem', lineHeight: 1.2 }}>
+                     {activity.name}
+                   </Typography>
+                 </Box>
+               </Grid>
 
-              {/* Min Value */}
-              <Grid item xs={0.5}>
-                <Typography sx={{ color: '#666', textAlign: 'right', fontSize: '0.9rem' }}>
-                  {activity.range_min}
-                </Typography>
-              </Grid>
+               {/* Min Value */}
+               <Grid item xs={1.5} sm={1} md={0.5}>
+                 <Typography sx={{ color: '#666', textAlign: 'center', fontSize: '0.8rem' }}>
+                   {activity.range_min}
+                 </Typography>
+               </Grid>
 
-              {/* Slider */}
-              <Grid item xs={6}>
+               {/* Slider */}
+               <Grid item xs={5} sm={6} md={6}>
                 <Slider
                   value={currentValue}
                   min={activity.range_min}
@@ -369,14 +366,14 @@ export const EstimationCalculator: React.FC = () => {
               </Grid>
 
               {/* Max Value */}
-              <Grid item xs={0.5}>
-                <Typography sx={{ color: '#666', fontSize: '0.9rem' }}>
+              <Grid item xs={1.5} sm={1} md={0.5}>
+                <Typography sx={{ color: '#666', fontSize: '0.8rem', textAlign: 'center' }}>
                   {activity.range_max}
                 </Typography>
               </Grid>
 
               {/* Hour Display Box */}
-              <Grid item xs={2}>
+              <Grid item xs={2.5} sm={3} md={2}>
                 <Box
                   sx={{
                     border: `1px solid ${isCurrentlyProcessing ? PRIMARY_BLUE : 

@@ -15,6 +15,7 @@ interface ChartItem {
   name: string;
   value: number;
   color: string;
+  [key: string]: any; // Add index signature for Recharts compatibility
 }
 
 const data: ChartItem[] = [
@@ -31,7 +32,7 @@ const data: ChartItem[] = [
 ];
 
 // 2. Fix Tooltip Types
-const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (
       <Box
@@ -69,16 +70,16 @@ export const EstimationCharts: React.FC = () => {
       <Box sx={{ width: '100%', height: '100%' }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            {/* Center Label */}
-            <text
-              x="50%"
-              y="50%"
-              textAnchor="middle"
-              dominantBaseline="middle"
-              style={{ fontSize: '20px', fontWeight: 500, fill: '#444' }}
-            >
-              BenchMark
-            </text>
+             {/* Center Label */}
+             <text
+               x="50%"
+               y="50%"
+               textAnchor="middle"
+               dominantBaseline="middle"
+               style={{ fontSize: '16px', fontWeight: 500, fill: '#444' }}
+             >
+               Migration Activities
+             </text>
             
             <Pie
               data={data}

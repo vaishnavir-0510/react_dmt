@@ -519,15 +519,28 @@ export const ErrorTab: React.FC = () => {
     }
 
     try {
-      const csvData = await downloadErrorCsv({
+      const result = await downloadErrorCsv({
         errorId: record.id,
         objectId,
         iterationId: record.iteration_reference
       }).unwrap();
-  
-      // Create blob from CSV string
-      const blob = new Blob([csvData], { type: 'text/csv' });
-      const filename = `error-${record.id}.csv`;
+
+      // Handle different response types
+      let blob: Blob;
+      let filename: string;
+      
+      if (result instanceof Blob) {
+        blob = result;
+        filename = `error-${record.id}.csv`;
+      } else if (result?.data) {
+        // Handle API response with data property
+        blob = new Blob([result.data], { type: 'text/csv' });
+        filename = `error-${record.id}.csv`;
+      } else {
+        // Fallback to JSON
+        blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+        filename = `error-${record.id}.json`;
+      }
       
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -571,23 +584,14 @@ export const ErrorTab: React.FC = () => {
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '100%' }}>
+    <Box>
       {/* Header Section */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 3, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" fontWeight="bold">
           Resolve issues that you get during migration process
         </Typography>
         
-        <Box sx={{ 
-          display: 'flex', 
-          flexDirection: { xs: 'column', sm: 'row' }, 
-          alignItems: { xs: 'flex-start', sm: 'center' }, 
-          gap: 2, 
-          flexWrap: 'wrap',
-          width: '100%',
-          justifyContent: { xs: 'flex-start', sm: 'flex-end' },
-          boxSizing: 'border-box'
-        }}>
+        <Box display="flex" alignItems="center" gap={2}>
           <ToggleButton
             activity="Error Handling"
             disabled={false}
@@ -615,9 +619,9 @@ export const ErrorTab: React.FC = () => {
       </Box>
 
       {/* Error Table */}
-      <Paper elevation={2} sx={{ width: '100%' }}>
-        <TableContainer sx={{ maxHeight: 600, overflowX: 'auto' }}>
-          <Table stickyHeader aria-label="error table" sx={{ tableLayout: 'auto', width: 'max-content', minWidth: '100%' }}>
+      <Paper elevation={2} sx={{ width: '100%', overflow: 'hidden' }}>
+        <TableContainer sx={{ maxHeight: 600 }}>
+          <Table stickyHeader aria-label="error table">
             <TableHead>
               <TableRow>
                 <TableCell padding="checkbox">
@@ -627,32 +631,19 @@ export const ErrorTab: React.FC = () => {
                     onChange={handleSelectAllClick}
                   />
                 </TableCell>
-                <TableCell>ID</TableCell>
-                <TableCell>Iteration Reference</TableCell>
                 <TableCell>Error Message</TableCell>
+                <TableCell>Count</TableCell>
                 <TableCell>Comment</TableCell>
                 <TableCell>Fix</TableCell>
-                <TableCell>Count</TableCell>
-                <TableCell>Object ID</TableCell>
-                <TableCell>Object Name</TableCell>
-                <TableCell>Created By</TableCell>
-                <TableCell>Modified By</TableCell>
-                <TableCell>Created Date</TableCell>
-                <TableCell>Modified Date</TableCell>
-                <TableCell>Ignored</TableCell>
-                <TableCell>Environment</TableCell>
-                <TableCell>Current</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Reload Job</TableCell>
-                <TableCell>Remediation Action</TableCell>
-                <TableCell>Remediation Status</TableCell>
+                <TableCell>Ignored</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={21} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                     <CircularProgress />
                     <Typography variant="body2" sx={{ mt: 1 }}>
                       Loading error data...
@@ -661,7 +652,7 @@ export const ErrorTab: React.FC = () => {
                 </TableRow>
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={21} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                     <Alert severity="error">
                       Failed to load error data.
                     </Alert>
@@ -669,7 +660,7 @@ export const ErrorTab: React.FC = () => {
                 </TableRow>
               ) : recordCount === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={21} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                     <Typography variant="body2" color="text.secondary">
                       No error records found.
                     </Typography>
@@ -695,12 +686,13 @@ export const ErrorTab: React.FC = () => {
                           onClick={(event) => handleClick(event, record.id)}
                         />
                       </TableCell>
-                      <TableCell>{record.id}</TableCell>
-                      <TableCell>{record.iteration_reference}</TableCell>
                       <TableCell>
                         <Typography 
                           variant="body2" 
                           sx={{ 
+                            maxWidth: 300,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                           }}
                           title={record.error}
@@ -709,9 +701,20 @@ export const ErrorTab: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
+                        <Chip 
+                          label={record.Count} 
+                          size="small" 
+                          color="primary" 
+                          variant="outlined" 
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Typography 
                           variant="body2"
                           sx={{ 
+                            maxWidth: 200,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                           }}
                           title={record.comment}
@@ -723,6 +726,9 @@ export const ErrorTab: React.FC = () => {
                         <Typography 
                           variant="body2"
                           sx={{ 
+                            maxWidth: 200,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                           }}
                           title={record.Fix}
@@ -731,19 +737,12 @@ export const ErrorTab: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={record.Count} 
-                          size="small" 
-                          color="primary" 
-                          variant="outlined" 
+                        <Chip
+                          label={record.status}
+                          color={record.status === 'failed' ? 'error' : 'default'}
+                          size="small"
                         />
                       </TableCell>
-                      <TableCell>{record.object_id}</TableCell>
-                      <TableCell>{record.object_name}</TableCell>
-                      <TableCell>{record.created_by}</TableCell>
-                      <TableCell>{record.modified_by}</TableCell>
-                      <TableCell>{record.created_date}</TableCell>
-                      <TableCell>{record.modified_date}</TableCell>
                       <TableCell>
                         <Switch
                           checked={record.is_ignored}
@@ -752,24 +751,6 @@ export const ErrorTab: React.FC = () => {
                           color="warning"
                         />
                       </TableCell>
-                      <TableCell>{record.environment}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={record.is_current ? 'Current' : 'Not Current'}
-                          color={record.is_current ? 'success' : 'default'}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={record.status}
-                          color={record.status === 'failed' ? 'error' : 'default'}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>{record.reload_job || 'No reload job'}</TableCell>
-                      <TableCell>{record.remediation_default_action}</TableCell>
-                      <TableCell>{record.remediation_status || 'No status'}</TableCell>
                       <TableCell>
                         <Box display="flex" gap={1} onClick={(e) => e.stopPropagation()}>
                           <IconButton
@@ -861,7 +842,7 @@ export const ErrorTab: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             Error Records for Selected Error
           </Typography>
-          <Paper elevation={2} sx={{ width: '100%' }}>
+          <Paper elevation={2} sx={{ width: '100%', overflow: 'hidden' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: 1, borderColor: 'divider' }}>
               <Typography variant="h6">
                 Error Records for Selected Error
@@ -875,8 +856,8 @@ export const ErrorTab: React.FC = () => {
                 Edit Selected Record
               </Button>
             </Box>
-            <TableContainer sx={{ maxHeight: 600, overflowX: 'auto' }}>
-              <Table stickyHeader aria-label="data records table" sx={{ tableLayout: 'auto', width: 'max-content', minWidth: '100%' }}>
+            <TableContainer sx={{ maxHeight: 600 }}>
+              <Table stickyHeader aria-label="data records table">
                 <TableHead>
                   <TableRow>
                     <TableCell padding="checkbox">Select</TableCell>
@@ -919,7 +900,7 @@ export const ErrorTab: React.FC = () => {
                         </TableCell>
                         {Object.values(record).map((value: any, idx: number) => (
                           <TableCell key={idx}>
-                            <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                            <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {String(value)}
                             </Typography>
                           </TableCell>

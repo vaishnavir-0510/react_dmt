@@ -38,12 +38,24 @@ interface UpdateErrorRequest {
   is_ignored?: boolean;
 }
 
-interface ErrorTrackerDataRecordsResponse {
+export interface ErrorTrackerDataRecordsResponse {
   records: Record<string, any>[];
   page: number;
   page_size: number;
   total_records: number;
   total_pages: number;
+}
+
+export interface UpdateErrorRecordRequest {
+  summaryId: string;
+  objectId: string;
+  recordData: Record<string, any>;
+}
+
+export interface EditSelectedErrorRecordsRequest {
+  summary_id: string;
+  object_id: string;
+  editedRecords: Record<string, any>[];
 }
 
 export const errorApi = createApi({
@@ -85,12 +97,21 @@ export const errorApi = createApi({
       }),
       providesTags: ["ErrorTracker"],
     }),
-    updateErrorRecord: builder.mutation<any, { summaryId: string; objectId: string; recordData: Record<string, any> }>({
+    updateErrorRecord: builder.mutation<any, UpdateErrorRecordRequest>({
       query: ({ summaryId, objectId, recordData }) => ({
         url: `/load/ingest/v1/edit_selected/error_records`,
         method: 'POST',
         params: { summary_id: summaryId, object_id: objectId },
         body: [recordData] // Send as array
+      }),
+      invalidatesTags: ["ErrorTracker"],
+    }),
+    editSelectedErrorRecords: builder.mutation<any, EditSelectedErrorRecordsRequest>({
+      query: ({ summary_id, object_id, editedRecords }) => ({
+        url: `/load/ingest/v1/edit_selected/error_records`,
+        method: 'POST',
+        params: { summary_id, object_id },
+        body: editedRecords
       }),
       invalidatesTags: ["ErrorTracker"],
     }),
@@ -119,10 +140,11 @@ export const errorApi = createApi({
         params: { error_tracker_id: errorTrackerId, iteration_id: iterationId, object_id: objectId }
       }),
     }),
-    downloadErrorCsv: builder.query<any, { errorId: string; objectId: string; iterationId: string }>({
+    downloadErrorCsv: builder.query<string, { errorId: string; objectId: string; iterationId: string }>({
       query: ({ errorId, objectId, iterationId }) => ({
         url: `/load/ingest/v1/download/error_csv/${errorId}`,
-        params: { object_id: objectId, iteration_id: iterationId }
+        params: { object_id: objectId, iteration_id: iterationId },
+        responseHandler: (response) => response.text(),
       }),
     }),
   }),
@@ -133,6 +155,7 @@ export const {
   useUpdateErrorMutation,
   useGetErrorTrackerDataRecordsQuery,
   useUpdateErrorRecordMutation,
+  useEditSelectedErrorRecordsMutation,
   useLazyEmailAllErrorRecordsQuery,
   useLoadAllErrorRecordsMutation,
   useLazyEmailErrorRecordQuery,

@@ -53,10 +53,24 @@ export const planEstimatorApi = createApi({
       }),
       invalidatesTags: ['PlanEstimator'],
     }),
+    // Update individual plan dates
+    updatePlanDates: builder.mutation<{ message: string }, { planId: string; startDate: string; endDate: string }>({
+      query: ({ planId, startDate, endDate }) => ({
+        url: `/management/v2/update/plan/dates/${planId}/${startDate}/${endDate}`,
+        method: 'PUT',
+        body: {
+          id: planId,
+          start_date: startDate,
+          end_date: endDate,
+        },
+      }),
+      invalidatesTags: ['PlanEstimator'],
+    }),
   }),
 });
 
 export const {
   useGetPlanEstimatorQuery,
   useUpdatePlanEstimatorMutation,
+  useUpdatePlanDatesMutation,
 } = planEstimatorApi;

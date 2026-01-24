@@ -33,6 +33,7 @@ import { filterApi } from '../services/filterApi';
 import { loadApi } from '../services/loadApi';
 import { entitiesApi } from '../services/entitiesApi';
 import { backupApi } from '../services/backuploadApi';
+import { managementApi } from '../services/managementApi';
 import { backupApi as backupDashboardApi } from '../services/backupApi';
 import { useDispatch } from 'react-redux';
 import { authApi } from './api/authApi';
@@ -46,6 +47,7 @@ import { dashboardApi } from '../services/dashboardApi';
 import { activityApi } from '../services/activityApi';
 import { securityPoliciesApi } from '../services/securityPoliciesApi';
 import { revealApi } from '../services/revealApi';
+import { translationApi } from '../services/translationApi';
 
 export const store = configureStore({
   reducer: {
@@ -79,12 +81,14 @@ export const store = configureStore({
     [transformRuleApi.reducerPath]: transformRuleApi.reducer,
     [filterApi.reducerPath]: filterApi.reducer,
     [loadApi.reducerPath]: loadApi.reducer, [entitiesApi.reducerPath]: entitiesApi.reducer, [backupApi.reducerPath]: backupApi.reducer,
+    [managementApi.reducerPath]: managementApi.reducer,
     [errorApi.reducerPath]: errorApi.reducer, [odfFileApi.reducerPath]: odfFileApi.reducer,
     [pipelineApi.reducerPath]: pipelineApi.reducer,
     [lookupApi.reducerPath]: lookupApi.reducer,[dashboardApi.reducerPath]: dashboardApi.reducer,
     [activityApi.reducerPath]: activityApi.reducer,
     [securityPoliciesApi.reducerPath]: securityPoliciesApi.reducer,
     [revealApi.reducerPath]: revealApi.reducer,
+    [translationApi.reducerPath]: translationApi.reducer,
 
   },
   middleware: (getDefaultMiddleware) =>
@@ -113,20 +117,29 @@ export const store = configureStore({
       cleanupApi.middleware,
       cleanupDataApi.middleware,
       cleanupFunctionsApi.middleware,
-      cleanupRuleApi.middleware,// ✅ ADDED
+      cleanupRuleApi.middleware,
       validateApi.middleware,
       validateDataApi.middleware,
       validateFunctionsApi.middleware,
-      validateRuleApi.middleware, mappingApi.middleware,
-      transformApi.middleware, transformActionsApi.middleware,
-      transformRuleApi.middleware, filterApi.middleware, loadApi.middleware, entitiesApi.middleware, backupApi.middleware, errorApi.middleware,
+      validateRuleApi.middleware,
+      mappingApi.middleware,
+      transformApi.middleware,
+      transformActionsApi.middleware,
+      transformRuleApi.middleware,
+      filterApi.middleware,
+      loadApi.middleware,
+      entitiesApi.middleware,
+      backupApi.middleware,
+      errorApi.middleware,
+      managementApi.middleware,
       odfFileApi.middleware,
       pipelineApi.middleware,
-      lookupApi.middleware,dashboardApi.middleware,
+      lookupApi.middleware,
+      dashboardApi.middleware,
       activityApi.middleware,
-       securityPoliciesApi.middleware,
-       revealApi.middleware,
-
+      securityPoliciesApi.middleware,
+      revealApi.middleware,
+      translationApi.middleware,
     ),
 
 });

@@ -85,7 +85,7 @@ export const MigrationTabs: React.FC<MigrationTabsProps> = ({ objectId, isReveal
   };
 
   return (
-    <Paper elevation={2} sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Paper elevation={2} sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
       <Tabs
         value={currentTab}
         onChange={handleTabChange}
@@ -135,8 +135,8 @@ export const MigrationTabs: React.FC<MigrationTabsProps> = ({ objectId, isReveal
         ))}
       </Tabs>
 
-      <Box sx={{ pt: 0.25, backgroundColor: '#0b378aff', flex: 1, borderRadius: '8px 8px 0 0' }}>
-        <Box sx={{ backgroundColor: 'white', flex: 1, p: 1 }}>
+      <Box sx={{ pt: 0.25, backgroundColor: '#0b378aff', flex: 1, borderRadius: '8px 8px 0 0', overflowX: 'hidden' }}>
+        <Box sx={{ backgroundColor: 'white', flex: 1, p: 1, overflowX: 'hidden' }}>
           {renderTabContent()}
         </Box>
       </Box>
