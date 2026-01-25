@@ -231,11 +231,11 @@ export const TransformSlideIn: React.FC<TransformSlideInProps> = ({
       setTransformStage(taskStatus.stage || '');
 
       // Check for completion states
-      const completedStatuses = ['SUCCESS', 'COMPLETE', 'FAILURE', 'ERROR'];
+      const completedStatuses = ['SUCCESS', 'FAILURE', 'ERROR'];
       if (completedStatuses.includes(taskStatus.status)) {
         setIsTransforming(false);
-        
-        if (taskStatus.status === 'SUCCESS' || taskStatus.status === 'COMPLETE') {
+
+        if (taskStatus.status === 'SUCCESS') {
           setSnackbar({
             open: true,
             message: `Transformation "${selectedFunction?.title}" completed successfully!`,

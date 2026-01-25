@@ -19,7 +19,7 @@ interface Pipeline {
   description_of_changes: string | null;
 }
 
-interface PipelineStep {
+export interface PipelineStep {
   pipeline_id: string;
   description: string;
   config: {

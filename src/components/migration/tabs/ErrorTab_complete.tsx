@@ -525,22 +525,9 @@ export const ErrorTab: React.FC = () => {
         iterationId: record.iteration_reference
       }).unwrap();
 
-      // Handle different response types
-      let blob: Blob;
-      let filename: string;
-      
-      if (result instanceof Blob) {
-        blob = result;
-        filename = `error-${record.id}.csv`;
-      } else if (result?.data) {
-        // Handle API response with data property
-        blob = new Blob([result.data], { type: 'text/csv' });
-        filename = `error-${record.id}.csv`;
-      } else {
-        // Fallback to JSON
-        blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
-        filename = `error-${record.id}.json`;
-      }
+      // Result is CSV string from API
+      const blob = new Blob([result], { type: 'text/csv' });
+      const filename = `error-${record.id}.csv`;
       
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

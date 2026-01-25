@@ -22,27 +22,7 @@ import {
   Schedule as PendingIcon,
 } from '@mui/icons-material';
 import { useGetPipelineStepsQuery } from '../../services/pipelineApi';
-
-interface PipelineStep {
-  pipeline_id: string;
-  description: string;
-  config: {
-    task: string;
-  };
-  object_id: string;
-  status: 'created' | 'running' | 'completed' | 'error';
-  error_message: string | null;
-  created_at: string;
-  created_by: string;
-  id: string;
-  step_type: string;
-  name: string;
-  order: number;
-  target_object_id: string;
-  results: any;
-  modified_at: string;
-  modified_by: string;
-}
+import type { PipelineStep } from '../../services/pipelineApi';
 
 interface PipelineStepsSlideInProps {
   open: boolean;
